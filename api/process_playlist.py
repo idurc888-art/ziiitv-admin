@@ -47,9 +47,33 @@ QUALITY_PATTERNS = [
     (re.compile(r'\bSD\b|\b480[Pp]?\b|\b360[Pp]?\b'), 'SD'),
 ]
 
-GROUP_LIVE   = re.compile(r'^(canais?|live|sport|esport|noticias?|news|abertos?|entretenimento|tv[\s_]|ppv|futebol|jogos?|combate|premiere|infantil)', re.I)
-GROUP_MOVIE  = re.compile(r'^(filmes?|movies?|\bvod\b|cinema|lan\u00e7amentos?|estreias?|documentar)', re.I)
-GROUP_SERIES = re.compile(r'^(series?|shows?|novelas?|animes?|sitcom|minisser)', re.I)
+# ── Padrões de grupo — ordem: SERIES e MOVIE têm prioridade sobre LIVE ────────
+# Checa o grupo COMPLETO (não só prefixo) para capturar padrões como
+# "Canais | Series [24H]", "Canais | Kids [24H]", etc.
+
+# SERIES: grupo contém palavra-chave de série em qualquer parte
+GROUP_SERIES_FULL = re.compile(
+    r'(series?|shows?|novelas?|animes?|sitcom|minisser|temporada|epis[oó]dio|season|episodes?)',
+    re.I
+)
+
+# MOVIE: grupo contém palavra-chave de filme em qualquer parte
+GROUP_MOVIE_FULL = re.compile(
+    r'(filmes?|movies?|\bvod\b|cinema|lan[cç]amentos?|estreias?|documentar)',
+    re.I
+)
+
+# KIDS: grupo contém kids/infantil → live temático (não série)
+GROUP_KIDS_FULL = re.compile(
+    r'(kids|infantil|crian[cç]as?)',
+    re.I
+)
+
+# LIVE: padrões que indicam canal ao vivo (usado APÓS checar series/movie)
+GROUP_LIVE_FULL = re.compile(
+    r'(canais?|live|sport|esport|noticias?|news|abertos?|entretenimento|tv[\s_]|ppv|futebol|jogos?|combate|premiere|music|musica)',
+    re.I
+)
 
 STREAMING_PREFIX_RE = re.compile(
     r'^[\s|]*(?:NETFLIX|AMAZON|PRIME(?:\s+VIDEO)?|HBO(?:\s*MAX)?|DISNEY\+?|STAR\+?|'
@@ -116,21 +140,42 @@ def clean_title(raw):
     s = re.sub(r'\b(DUAL|DUB(?:LADO)?|LEG(?:ENDADO)?|PT-?BR|LEGENDAS|SUB(?:TITULO)?)\b', '', s, flags=re.I)
     s = re.sub(r'\b(?:19|20)\d{2}\b', '', s)
     s = re.sub(r'\b(VOD|VIP|PREMIUM|PLUS|ULTRA|ONLINE)\b', '', s, flags=re.I)
-    s = re.sub(r'[|_.\\\-\u2013\u2014:]+', ' ', s)
+    s = re.sub(r'[|_.\\\\-\u2013\u2014:]+', ' ', s)
     s = re.sub(r'\s{2,}', ' ', s).strip()
     return s.title() if s else ''
 
-def get_group_prefix(group):
-    if not group:
-        return ''
-    return norm(re.split(r'[|:]', group)[0])
 
 def detect_type(raw_name, group):
-    prefix = get_group_prefix(group)
-    if GROUP_LIVE.match(prefix):   return 'live'
-    if GROUP_MOVIE.match(prefix):  return 'movie'
-    if GROUP_SERIES.match(prefix): return 'series'
-    if extract_episode(raw_name):  return 'series'
+    """
+    Prioridade de detecção (ordem importa):
+    1. Grupo contém palavra-chave de SÉRIE → 'series'
+    2. Grupo contém palavra-chave de FILME → 'movie'
+    3. Nome do canal contém padrão de episódio → 'series'
+    4. Grupo contém palavra-chave de LIVE → 'live'
+    5. Fallback → 'live'
+
+    Checa o grupo COMPLETO (não só o prefixo antes do |) para capturar
+    padrões como "Canais | Series [24H]" ou "Canais | Kids [24H]".
+    """
+    g = group or ''
+
+    # 1. Serie tem prioridade máxima — grupo completo
+    if GROUP_SERIES_FULL.search(g):
+        return 'series'
+
+    # 2. Filme — grupo completo
+    if GROUP_MOVIE_FULL.search(g):
+        return 'movie'
+
+    # 3. Episódio detectado no nome
+    if extract_episode(raw_name):
+        return 'series'
+
+    # 4. Live explícito (inclui kids que são canais ao vivo temáticos)
+    if GROUP_LIVE_FULL.search(g) or GROUP_KIDS_FULL.search(g):
+        return 'live'
+
+    # 5. Fallback
     return 'live'
 
 
@@ -278,11 +323,10 @@ def fetch_raw_channels_from_db(playlist_id):
     """
     all_raw = []
     last_id = None
-    BATCH   = 2000  # lotes maiores = menos round-trips
+    BATCH   = 2000
 
     while True:
         if last_id is None:
-            # Primeira página — sem filtro de cursor
             path = (
                 f'raw_channels?playlist_id=eq.{playlist_id}'
                 f'&select=id,name,group_name,logo,url'
@@ -290,7 +334,6 @@ def fetch_raw_channels_from_db(playlist_id):
                 f'&limit={BATCH}'
             )
         else:
-            # Páginas seguintes — filtra id > last_id (keyset)
             path = (
                 f'raw_channels?playlist_id=eq.{playlist_id}'
                 f'&id=gt.{last_id}'
@@ -305,10 +348,10 @@ def fetch_raw_channels_from_db(playlist_id):
             break
 
         all_raw.extend(page)
-        last_id = page[-1]['id']  # cursor = último id retornado
+        last_id = page[-1]['id']
 
         if len(page) < BATCH:
-            break  # última página
+            break
 
     return all_raw
 
@@ -478,9 +521,7 @@ class handler(BaseHTTPRequestHandler):
                     for r in all_raw
                 ]
 
-                # Limpa raw_channels após leitura
                 sb('DELETE', f'raw_channels?playlist_id=eq.{playlist_id}')
-                # Limpa channels anteriores desta playlist
                 sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
 
                 result    = process_channels(raw_channels)
