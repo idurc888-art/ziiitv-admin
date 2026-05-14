@@ -345,17 +345,21 @@ class handler(BaseHTTPRequestHandler):
         try:
             length     = int(self.headers.get('Content-Length', 0))
             body       = json.loads(self.rfile.read(length))
-            playlist_id = body.get('playlist_id')
-            url         = body.get('url')
+            playlist_id  = body.get('playlist_id')
+            url          = body.get('url')
             storage_path = body.get('storage_path')
+            content_inline = body.get('content')  # arquivo grande lido no browser
 
-            if not playlist_id or (not url and not storage_path):
-                return self._error(400, 'Precisa de playlist_id e (url ou storage_path)')
+            if not playlist_id or (not url and not storage_path and not content_inline):
+                return self._error(400, 'Precisa de playlist_id e (url, storage_path ou content)')
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {'status': 'processing'})
 
             # ── Busca o conteúdo da lista ─────────────────────────────────────
-            if url:
+            if content_inline:
+                # Arquivo grande: conteúdo veio inline do browser (>48MB)
+                content = content_inline
+            elif url:
                 req = urllib.request.Request(url, headers={
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                     'Accept': '*/*',

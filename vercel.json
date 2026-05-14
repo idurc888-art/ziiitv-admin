@@ -3,7 +3,8 @@
   "outputDirectory": "dist",
   "functions": {
     "api/process_playlist.py": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "maxBodySize": 314572800
     }
   },
   "rewrites": [
