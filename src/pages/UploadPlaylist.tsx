@@ -174,7 +174,7 @@ export function UploadPlaylist() {
         playlist_id:  playlist.id,
         url:          mode === 'url' ? url.trim() : undefined,
         storage_path: storagePath ?? undefined,
-        source:       usedBrowserParse ? 'raw_channels' : undefined,
+        from_db:      usedBrowserParse ? true : undefined,
       }
 
       const resp = await fetch('/api/process_playlist', {
