@@ -7,10 +7,11 @@ import { supabase } from '../lib/supabase'
 import { Upload, Copy, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-type Phase = 'uploading' | 'processing' | 'saving' | ''
+type Phase = 'uploading' | 'parsing' | 'processing' | 'saving' | ''
 
 const PHASE_LABEL: Record<Phase, string> = {
   uploading:  '⬆️ Enviando arquivo...',
+  parsing:    '📋 Lendo lista no browser...',
   processing: '⚙️ Processando lista...',
   saving:     '💾 Salvando no banco...',
   '': '',
@@ -24,29 +25,57 @@ interface Stats {
   inserted: number
 }
 
-const MAX_FILE_MB = 300
+// Supabase Storage free tier = 50MB por arquivo
+// Acima disso, o browser faz o parse e envia em batches para o banco
+const STORAGE_MAX_MB = 45
+const MAX_FILE_MB    = 500
+
+// Parser M3U mínimo — só extrai name/group/logo/url
+function parseMiniM3u(text: string): Array<{ name: string; group: string | null; logo: string | null; url: string }> {
+  const channels: Array<{ name: string; group: string | null; logo: string | null; url: string }> = []
+  let current: { name: string; group: string | null; logo: string | null } | null = null
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (line.startsWith('#EXTINF:')) {
+      const nameM  = line.match(/,(.+)$/)
+      const groupM = line.match(/group-title="([^"]*)"/)
+      const logoM  = line.match(/tvg-logo="([^"]*)"/)
+      current = {
+        name:  nameM  ? nameM[1].trim() : '',
+        group: groupM ? groupM[1] : null,
+        logo:  logoM  ? logoM[1]  : null,
+      }
+    } else if (line && !line.startsWith('#') && current?.name) {
+      channels.push({ ...current, url: line })
+      current = null
+    }
+  }
+  return channels
+}
 
 export function UploadPlaylist() {
   const navigate  = useNavigate()
-  const [file, setFile]     = useState<File | null>(null)
-  const [url, setUrl]       = useState('')
-  const [mode, setMode]     = useState<'file' | 'url'>('url')
+  const [file, setFile]       = useState<File | null>(null)
+  const [url, setUrl]         = useState('')
+  const [mode, setMode]       = useState<'file' | 'url'>('url')
   const [loading, setLoading] = useState(false)
-  const [phase, setPhase]   = useState<Phase>('')
+  const [phase, setPhase]     = useState<Phase>('')
   const [progress, setProgress] = useState(0)
-  const [code, setCode]     = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [stats, setStats]   = useState<Stats | null>(null)
-  const cancelledRef        = useRef(false)
-  const playlistIdRef       = useRef<string | null>(null)
+  const [code, setCode]       = useState<string | null>(null)
+  const [copied, setCopied]   = useState(false)
+  const [stats, setStats]     = useState<Stats | null>(null)
+  const cancelledRef          = useRef(false)
+  const playlistIdRef         = useRef<string | null>(null)
 
   const fileSizeMB = file ? file.size / 1024 / 1024 : 0
+  const useBrowserParse = fileSizeMB > STORAGE_MAX_MB
 
   const handleCancel = async () => {
     cancelledRef.current = true
     const pid = playlistIdRef.current
     if (pid) {
       try {
+        await supabase.from('raw_channels').delete().eq('playlist_id', pid)
         await supabase.from('channels').delete().eq('playlist_id', pid)
         await supabase.from('playlists').delete().eq('id', pid)
       } catch {}
@@ -62,14 +91,14 @@ export function UploadPlaylist() {
     if (mode === 'file' && !file)       { toast.error('Selecione um arquivo .m3u'); return }
     if (mode === 'url' && !url.trim())  { toast.error('Cole a URL da playlist'); return }
     if (mode === 'file' && file && fileSizeMB > MAX_FILE_MB) {
-      toast.error(`Arquivo maior que ${MAX_FILE_MB}MB — use URL`); return
+      toast.error(`Arquivo maior que ${MAX_FILE_MB}MB`); return
     }
 
     setLoading(true)
     setStats(null)
     setProgress(0)
-    cancelledRef.current   = false
-    playlistIdRef.current  = null
+    cancelledRef.current  = false
+    playlistIdRef.current = null
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -87,25 +116,57 @@ export function UploadPlaylist() {
       playlistIdRef.current = playlist.id
 
       let storagePath: string | null = null
+      let usedBrowserParse = false
 
-      // ── 2. Arquivo: sempre vai pro Supabase Storage ─────────────────────────
+      // ── 2. Arquivo ──────────────────────────────────────────────────────────
       if (mode === 'file' && file) {
-        setPhase('uploading')
-        const path = `${user.id}/${playlist.id}.m3u`
-        const { error: uploadErr } = await supabase.storage
-          .from('playlists')
-          .upload(path, file, { contentType: 'application/x-mpegurl', upsert: true })
-        if (uploadErr) {
-          if (uploadErr.message.toLowerCase().includes('size') || uploadErr.message.toLowerCase().includes('limit')) {
-            throw new Error(`Arquivo muito grande para o Storage. Vá em Supabase Dashboard → Storage → Buckets → playlists → Edit → File size limit → 314572800 (300MB)`)
+        if (!useBrowserParse) {
+          // Arquivo pequeno (≤45MB) → Storage → Python faz tudo
+          setPhase('uploading')
+          const path = `${user.id}/${playlist.id}.m3u`
+          const { error: uploadErr } = await supabase.storage
+            .from('playlists')
+            .upload(path, file, { contentType: 'application/x-mpegurl', upsert: true })
+          if (uploadErr) throw new Error(`Upload falhou: ${uploadErr.message}`)
+          storagePath = path
+        } else {
+          // Arquivo grande (>45MB) → browser lê + parseia + insere em batches no banco
+          setPhase('parsing')
+          toast(`Arquivo ${fileSizeMB.toFixed(0)}MB — processando no browser...`, { duration: 4000 })
+
+          const text = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload  = () => resolve(reader.result as string)
+            reader.onerror = () => reject(new Error('Erro ao ler arquivo'))
+            reader.readAsText(file, 'utf-8')
+          })
+
+          if (cancelledRef.current) { await handleCancel(); return }
+
+          const rawChannels = parseMiniM3u(text)
+
+          setPhase('uploading')
+          const BATCH = 3000
+          for (let i = 0; i < rawChannels.length; i += BATCH) {
+            if (cancelledRef.current) { await handleCancel(); return }
+            const batch = rawChannels.slice(i, i + BATCH).map(ch => ({
+              playlist_id: playlist.id,
+              name:        ch.name,
+              group_name:  ch.group,
+              logo:        ch.logo,
+              url:         ch.url,
+            }))
+            const { error } = await supabase.from('raw_channels').insert(batch)
+            if (error) throw new Error(`Erro ao salvar canais: ${error.message}`)
+            setProgress(Math.round(((i + batch.length) / rawChannels.length) * 40))
           }
-          throw new Error(`Upload falhou: ${uploadErr.message}`)
+          usedBrowserParse = true
         }
-        storagePath = path
+
         if (cancelledRef.current) { await handleCancel(); return }
       }
 
-      // ── 3. Chama a API Python para processar ────────────────────────────────
+      // ── 3. Chama a API Python ───────────────────────────────────────────────
       setPhase('processing')
       setProgress(45)
 
@@ -113,6 +174,7 @@ export function UploadPlaylist() {
         playlist_id:  playlist.id,
         url:          mode === 'url' ? url.trim() : undefined,
         storage_path: storagePath ?? undefined,
+        source:       usedBrowserParse ? 'raw_channels' : undefined,
       }
 
       const resp = await fetch('/api/process_playlist', {
@@ -147,10 +209,10 @@ export function UploadPlaylist() {
     } catch (err: any) {
       console.error('[Upload]', err)
       const msg: string = err.message || 'Erro ao processar playlist'
-      const friendlyMsg = msg.includes('403')
+      const friendly = msg.includes('403')
         ? 'Provedor IPTV bloqueou o acesso. Baixe o arquivo .m3u e use o modo Arquivo.'
         : msg
-      toast.error(friendlyMsg, { duration: 8000 })
+      toast.error(friendly, { duration: 8000 })
       setCode(null)
       setStats(null)
     } finally {
@@ -225,9 +287,14 @@ export function UploadPlaylist() {
                 disabled={loading || !!code}
               />
               {file && (
-                <p className="mt-1 text-sm text-gray-400">
-                  {file.name} ({fileSizeMB.toFixed(1)} MB)
-                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="text-sm text-gray-400">{file.name} ({fileSizeMB.toFixed(1)} MB)</p>
+                  {useBrowserParse && (
+                    <span className="text-xs px-2 py-0.5 bg-blue-900/50 text-blue-400 rounded-full">
+                      arquivo grande — processado no browser
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -272,7 +339,7 @@ export function UploadPlaylist() {
             </div>
           )}
 
-          {/* Stats pós-processamento */}
+          {/* Stats */}
           {stats && !code && (
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -293,7 +360,7 @@ export function UploadPlaylist() {
           {code && (
             <div className="p-6 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-white mb-1">✅ Código Gerado!</h3>
+                <h3 className="text-lg font-semibold text-white mb-1">Código Gerado!</h3>
                 {stats && (
                   <p className="text-sm text-gray-400">
                     {stats.series.toLocaleString('pt-BR')} séries · {stats.movies.toLocaleString('pt-BR')} filmes · {stats.live.toLocaleString('pt-BR')} TV ao vivo

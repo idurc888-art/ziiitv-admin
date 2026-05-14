@@ -343,22 +343,44 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         playlist_id = None
         try:
-            length     = int(self.headers.get('Content-Length', 0))
-            body       = json.loads(self.rfile.read(length))
+            length       = int(self.headers.get('Content-Length', 0))
+            body         = json.loads(self.rfile.read(length))
             playlist_id  = body.get('playlist_id')
             url          = body.get('url')
             storage_path = body.get('storage_path')
-            content_inline = body.get('content')  # arquivo grande lido no browser
+            source       = body.get('source')  # 'raw_channels' para arquivos grandes
 
-            if not playlist_id or (not url and not storage_path and not content_inline):
-                return self._error(400, 'Precisa de playlist_id e (url, storage_path ou content)')
+            valid = playlist_id and (url or storage_path or source == 'raw_channels')
+            if not valid:
+                return self._error(400, 'Precisa de playlist_id e (url, storage_path ou source=raw_channels)')
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {'status': 'processing'})
 
-            # ── Busca o conteúdo da lista ─────────────────────────────────────
-            if content_inline:
-                # Arquivo grande: conteúdo veio inline do browser (>48MB)
-                content = content_inline
+            pl_rows = sb('GET', f'playlists?id=eq.{playlist_id}&select=content_hash,user_id', prefer='')
+            pl = pl_rows[0] if pl_rows else {}
+            user_id = pl.get('user_id')
+            if not user_id:
+                raise Exception('user_id não encontrado na playlist')
+
+            # ── Obtém os canais brutos ────────────────────────────────────────
+            if source == 'raw_channels':
+                # Browser já fez o parse e inseriu na tabela raw_channels
+                raw_rows = []
+                limit, offset = 10000, 0
+                while True:
+                    page = sb('GET', f'raw_channels?playlist_id=eq.{playlist_id}&select=name,group_name,logo,url&limit={limit}&offset={offset}', prefer='')
+                    if not page:
+                        break
+                    raw_rows.extend(page)
+                    if len(page) < limit:
+                        break
+                    offset += limit
+                # Limpa staging imediatamente
+                sb('DELETE', f'raw_channels?playlist_id=eq.{playlist_id}')
+                raw = [{'name': r['name'], 'group': r['group_name'], 'logo': r['logo'], 'url': r['url']} for r in raw_rows]
+                # Hash baseado nas primeiras 5K URLs
+                sample = ''.join(r['url'] for r in raw_rows[:5000])
+                content_hash = hashlib.sha256(sample.encode()).hexdigest()[:32]
             elif url:
                 req = urllib.request.Request(url, headers={
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
@@ -366,6 +388,8 @@ class handler(BaseHTTPRequestHandler):
                 })
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     content = resp.read().decode('utf-8', errors='replace')
+                raw = parse_m3u(content)
+                content_hash = hashlib.sha256(content[:50000].encode()).hexdigest()[:32]
             else:
                 req = urllib.request.Request(
                     f"{SUPABASE_URL}/storage/v1/object/{storage_path}",
@@ -373,12 +397,10 @@ class handler(BaseHTTPRequestHandler):
                 )
                 with urllib.request.urlopen(req) as resp:
                     content = resp.read().decode('utf-8', errors='replace')
+                raw = parse_m3u(content)
+                content_hash = hashlib.sha256(content[:50000].encode()).hexdigest()[:32]
 
-            # ── Hash para evitar reprocessamento desnecessário ────────────────
-            content_hash = hashlib.sha256(content[:50000].encode()).hexdigest()[:32]
-            pl_rows = sb('GET', f'playlists?id=eq.{playlist_id}&select=content_hash,user_id', prefer='')
-            pl = pl_rows[0] if pl_rows else {}
-
+            # ── Dedup por hash ────────────────────────────────────────────────
             if pl.get('content_hash') == content_hash:
                 sb('PATCH', f'playlists?id=eq.{playlist_id}', {
                     'status': 'ready',
@@ -386,35 +408,28 @@ class handler(BaseHTTPRequestHandler):
                 })
                 return self._json({'success': True, 'skipped': True, 'reason': 'content_unchanged'})
 
-            user_id = pl.get('user_id')
-            if not user_id:
-                raise Exception('user_id não encontrado na playlist')
-
             # ── Pipeline ──────────────────────────────────────────────────────
-            raw = parse_m3u(content)
-            result = process_channels(raw)
-            series = result['series']
-            movies = result['movies']
-            live   = result['live']
+            result       = process_channels(raw)
+            series       = result['series']
+            movies       = result['movies']
+            live         = result['live']
             all_channels = series + movies + live
 
-            # Limpa canais antigos da playlist
             sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
-
-            # Salva tudo
             inserted = save_channels(playlist_id, user_id, all_channels)
 
-            # Enfileira enriquecimento TMDB (séries + filmes)
-            enrichable = len(series) + len(movies)
-            if enrichable > 0:
-                sb('POST', 'enrich_jobs', [{
-                    'playlist_id':     playlist_id,
-                    'status':          'pending',
-                    'total_count':     enrichable,
-                    'processed_count': 0,
-                }])
+            try:
+                enrichable = len(series) + len(movies)
+                if enrichable > 0:
+                    sb('POST', 'enrich_jobs', [{
+                        'playlist_id':     playlist_id,
+                        'status':          'pending',
+                        'total_count':     enrichable,
+                        'processed_count': 0,
+                    }])
+            except Exception:
+                pass
 
-            # Finaliza playlist
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {
                 'status':        'ready',
                 'channel_count': inserted,
