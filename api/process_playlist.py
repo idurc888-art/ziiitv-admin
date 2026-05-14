@@ -270,6 +270,49 @@ def sb(method, path, body=None, prefer='return=minimal'):
         raise Exception(f"Supabase {method} {path} \u2192 {e.code}: {e.read().decode()[:200]}")
 
 
+def fetch_raw_channels_from_db(playlist_id):
+    """
+    Keyset pagination usando id como cursor.
+    Evita OFFSET alto que causa statement timeout em tabelas grandes.
+    O index idx_raw_channels_playlist_id_keyset (playlist_id, id) garante O(log n) em cada page.
+    """
+    all_raw = []
+    last_id = None
+    BATCH   = 2000  # lotes maiores = menos round-trips
+
+    while True:
+        if last_id is None:
+            # Primeira página — sem filtro de cursor
+            path = (
+                f'raw_channels?playlist_id=eq.{playlist_id}'
+                f'&select=id,name,group_name,logo,url'
+                f'&order=id'
+                f'&limit={BATCH}'
+            )
+        else:
+            # Páginas seguintes — filtra id > last_id (keyset)
+            path = (
+                f'raw_channels?playlist_id=eq.{playlist_id}'
+                f'&id=gt.{last_id}'
+                f'&select=id,name,group_name,logo,url'
+                f'&order=id'
+                f'&limit={BATCH}'
+            )
+
+        page = sb('GET', path, prefer='')
+
+        if not page:
+            break
+
+        all_raw.extend(page)
+        last_id = page[-1]['id']  # cursor = último id retornado
+
+        if len(page) < BATCH:
+            break  # última página
+
+    return all_raw
+
+
 def save_channels(playlist_id, user_id, channels):
     inserted = 0
     for i in range(0, len(channels), 300):
@@ -418,21 +461,9 @@ class handler(BaseHTTPRequestHandler):
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {'status': 'processing'})
 
-            # ── MODO from_db: lê de raw_channels (inseridos pelo browser em batches) ──
+            # ── MODO from_db: lê de raw_channels com keyset pagination ──
             if from_db:
-                all_raw = []
-                offset  = 0
-                while True:
-                    page = sb('GET',
-                        f'raw_channels?playlist_id=eq.{playlist_id}&select=name,group_name,logo,url&order=id&limit=1000&offset={offset}',
-                        prefer=''
-                    )
-                    if not page:
-                        break
-                    all_raw.extend(page)
-                    if len(page) < 1000:
-                        break
-                    offset += 1000
+                all_raw = fetch_raw_channels_from_db(playlist_id)
 
                 if not all_raw:
                     return self._error(400, 'Nenhum canal raw encontrado no banco para esta playlist. O browser enviou os batches?')
