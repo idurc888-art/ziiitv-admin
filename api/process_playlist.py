@@ -116,7 +116,7 @@ def clean_title(raw):
     s = re.sub(r'\b(DUAL|DUB(?:LADO)?|LEG(?:ENDADO)?|PT-?BR|LEGENDAS|SUB(?:TITULO)?)\b', '', s, flags=re.I)
     s = re.sub(r'\b(?:19|20)\d{2}\b', '', s)
     s = re.sub(r'\b(VOD|VIP|PREMIUM|PLUS|ULTRA|ONLINE)\b', '', s, flags=re.I)
-    s = re.sub(r'[|_.\-\u2013\u2014:]+', ' ', s)
+    s = re.sub(r'[|_.\\-\u2013\u2014:]+', ' ', s)
     s = re.sub(r'\s{2,}', ' ', s).strip()
     return s.title() if s else ''
 
@@ -294,50 +294,57 @@ def save_channels(playlist_id, user_id, channels):
     return inserted
 
 
-# ── Fetch URL com fallback de headers IPTV ───────────────────────────────────
+# ── Fetch M3U: tenta Edge Function proxy primeiro, depois direto ──────────────
 
-IPTV_HEADERS = [
-    # Tenta simular player de TV comum
-    {
-        'User-Agent': 'Lavf/58.76.100',
-        'Accept': '*/*',
-        'Connection': 'keep-alive',
-    },
-    # Tenta simular VLC
-    {
-        'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
-        'Accept': '*/*',
-    },
-    # Tenta simular browser Android TV
-    {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SmartTV) AppleWebKit/537.36',
-        'Accept': 'application/x-mpegURL, application/vnd.apple.mpegurl, */*',
-        'Referer': '',
-    },
-    # Fallback genérico
-    {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Accept': '*/*',
-    },
+IPTV_HEADERS_DIRECT = [
+    {'User-Agent': 'Lavf/58.76.100', 'Accept': '*/*', 'Connection': 'keep-alive'},
+    {'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18', 'Accept': '*/*'},
+    {'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SmartTV) AppleWebKit/537.36', 'Accept': 'application/x-mpegURL, */*'},
+    {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': '*/*'},
 ]
 
 
-def fetch_m3u_url(url):
-    """Tenta baixar M3U com múltiplos sets de headers. Retorna conteúdo ou lança exceção."""
+def fetch_via_edge_proxy(m3u_url):
+    """Tenta buscar a M3U via Supabase Edge Function (IP diferente de Vercel/AWS)."""
+    proxy_url = f"{SUPABASE_URL}/functions/v1/m3u-proxy"
+    payload   = json.dumps({'url': m3u_url}).encode()
+    req       = urllib.request.Request(proxy_url, data=payload, method='POST')
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('Authorization', f'Bearer {SUPABASE_KEY}')
+
+    try:
+        with urllib.request.urlopen(req, timeout=35) as resp:
+            result = json.loads(resp.read())
+            if result.get('success') and result.get('content'):
+                content = result['content']
+                if '#EXTM3U' in content or '#EXTINF' in content:
+                    return content, 'edge_proxy'
+            # Edge function retornou erro explicito
+            if result.get('blocked'):
+                raise Exception(
+                    f"Provedor IPTV bloqueou o acesso (HTTP 403/401). "
+                    "Baixe o arquivo .m3u manualmente e use o modo Arquivo."
+                )
+            raise Exception(result.get('error', 'Edge proxy não retornou conteúdo M3U válido'))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()[:300]
+        raise Exception(f"Edge proxy HTTP {e.code}: {body}")
+
+
+def fetch_m3u_direct(url):
+    """Tenta buscar diretamente com múltiplos User-Agents."""
     last_error = None
-    for headers in IPTV_HEADERS:
+    for headers in IPTV_HEADERS_DIRECT:
         try:
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=30) as resp:
                 content = resp.read().decode('utf-8', errors='replace')
                 if content.strip().startswith('#EXTM3U') or '#EXTINF' in content[:500]:
-                    return content
-                # Se retornou algo mas não parece M3U, continua tentando
-                last_error = Exception(f'Resposta não é M3U válido (primeiros chars: {content[:80]!r})')
+                    return content, 'direct'
+                last_error = Exception(f'Resposta não é M3U válido')
         except urllib.error.HTTPError as e:
-            last_error = Exception(f'HTTP {e.code}: {e.reason} — provedor bloqueou a requisição')
+            last_error = Exception(f'HTTP {e.code}: {e.reason}')
             if e.code in (401, 403):
-                # 401/403 é bloqueio definitivo, não adianta tentar outros headers
                 raise Exception(
                     f'Acesso bloqueado pelo provedor IPTV (HTTP {e.code}). '
                     'Baixe o arquivo .m3u manualmente e use o modo Arquivo.'
@@ -345,6 +352,30 @@ def fetch_m3u_url(url):
         except Exception as e:
             last_error = e
     raise last_error or Exception('Não foi possível baixar a lista M3U')
+
+
+def fetch_m3u_url(url):
+    """
+    Estratégia em 2 etapas:
+    1. Tenta via Supabase Edge Function (IP diferente, mais chance de passar)
+    2. Se falhar (não por bloqueio), tenta direto do Vercel
+    3. Se bloqueado em qualquer etapa → orienta usar modo Arquivo
+    """
+    # Etapa 1: Edge Function proxy
+    try:
+        content, mode = fetch_via_edge_proxy(url)
+        return content  # Sucesso via proxy
+    except Exception as proxy_err:
+        proxy_msg = str(proxy_err)
+        # Se bloqueio confirmado pelo proxy, não adianta tentar direto
+        if 'bloqueou' in proxy_msg or '403' in proxy_msg or '401' in proxy_msg or 'Arquivo' in proxy_msg:
+            raise Exception(proxy_msg)
+        # Proxy falhou por outro motivo (timeout, indisponível) → tenta direto
+        pass
+
+    # Etapa 2: Direto do servidor Vercel
+    content, mode = fetch_m3u_direct(url)
+    return content
 
 
 # ── Handler Vercel ────────────────────────────────────────────────────────────
@@ -366,7 +397,6 @@ class handler(BaseHTTPRequestHandler):
             length  = int(self.headers.get('Content-Length', 0))
             raw_body = self.rfile.read(length)
 
-            # Detecta body truncado (< Content-Length real)
             if len(raw_body) < length:
                 return self._error(400, f'Body truncado: esperado {length} bytes, recebeu {len(raw_body)}. Arquivo muito grande para este endpoint.')
 
@@ -374,8 +404,8 @@ class handler(BaseHTTPRequestHandler):
             playlist_id    = body.get('playlist_id')
             url            = body.get('url')
             storage_path   = body.get('storage_path')
-            content_inline = body.get('content')       # arquivo pequeno direto
-            from_db        = body.get('from_db', False) # modo: canais já estão no banco (batch do browser)
+            content_inline = body.get('content')
+            from_db        = body.get('from_db', False)
 
             if not playlist_id:
                 return self._error(400, 'Falta playlist_id')
@@ -383,7 +413,6 @@ class handler(BaseHTTPRequestHandler):
             if not from_db and not url and not storage_path and not content_inline:
                 return self._error(400, 'Precisa de: url, storage_path, content ou from_db=true')
 
-            # Busca playlist info
             pl_rows = sb('GET', f'playlists?id=eq.{playlist_id}&select=content_hash,user_id', prefer='')
             if not pl_rows:
                 return self._error(404, f'Playlist {playlist_id} não encontrada')
@@ -396,8 +425,6 @@ class handler(BaseHTTPRequestHandler):
 
             # ── MODO from_db: canais raw já foram salvos pelo browser em batches ──
             if from_db:
-                # Lê os canais raw da tabela channels (content_type IS NULL = raw ainda não processado)
-                # Busca em páginas de 1000
                 all_raw = []
                 offset  = 0
                 while True:
@@ -415,7 +442,6 @@ class handler(BaseHTTPRequestHandler):
                 if not all_raw:
                     return self._error(400, 'Nenhum canal raw encontrado no banco para esta playlist. O browser enviou os batches?')
 
-                # Converte formato do banco para formato do parser
                 raw_channels = [
                     {
                         'name':  r.get('name', ''),
@@ -426,7 +452,6 @@ class handler(BaseHTTPRequestHandler):
                     for r in all_raw
                 ]
 
-                # Limpa os canais raw antes de salvar os processados
                 sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
 
                 result    = process_channels(raw_channels)
@@ -459,10 +484,11 @@ class handler(BaseHTTPRequestHandler):
                     'inserted': inserted,
                 })
 
-            # ── MODO normal: busca o conteúdo e processa aqui ─────────────────
+            # ── MODO normal: busca conteúdo ───────────────────────────────────
             if content_inline:
                 content = content_inline
             elif url:
+                # Tenta proxy Edge Function primeiro, depois direto
                 content = fetch_m3u_url(url)
             else:
                 req = urllib.request.Request(
@@ -472,7 +498,6 @@ class handler(BaseHTTPRequestHandler):
                 with urllib.request.urlopen(req) as resp:
                     content = resp.read().decode('utf-8', errors='replace')
 
-            # Hash para evitar reprocessamento desnecessário
             content_hash = hashlib.sha256(content[:50000].encode()).hexdigest()[:32]
 
             if pl.get('content_hash') == content_hash:
