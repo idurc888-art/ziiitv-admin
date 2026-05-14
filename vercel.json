@@ -3,7 +3,6 @@
   "outputDirectory": "dist",
   "functions": {
     "api/process_playlist.py": {
-      "runtime": "python3.12",
       "maxDuration": 60
     }
   },
