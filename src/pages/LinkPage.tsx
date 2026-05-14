@@ -102,6 +102,17 @@ export function LinkPage() {
         }, { onConflict: 'device_id' })
     }
 
+    // 3. Dispara enriquecimento em background (fire-and-forget)
+    // A TV já foi notificada via Realtime — isso só constrói o cache TMDB
+    supabase.functions.invoke('process-playlist', {
+      body: {
+        device_id:     deviceId,
+        playlist_url:  playlistUrl,
+        playlist_type: playlistType,
+        ...(mode === 'xtream' ? { xtream_host: host.trim(), xtream_user: user.trim(), xtream_pass: pass.trim() } : {}),
+      },
+    }).catch(() => {})
+
     setStep('success')
   }
 
