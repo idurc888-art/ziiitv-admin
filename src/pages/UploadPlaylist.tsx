@@ -24,10 +24,7 @@ interface Stats {
   inserted: number
 }
 
-// Limite do Supabase Storage Free tier = 50MB
-// Acima disso, lemos o arquivo no browser e enviamos o conteúdo direto para a API
-const STORAGE_LIMIT_MB = 48  // margem de segurança — 48MB para não encostar no limite de 50MB
-const MAX_FILE_MB      = 300  // limite de UI — avisa usuário se passar de 300MB
+const MAX_FILE_MB = 300
 
 export function UploadPlaylist() {
   const navigate  = useNavigate()
@@ -44,7 +41,6 @@ export function UploadPlaylist() {
   const playlistIdRef       = useRef<string | null>(null)
 
   const fileSizeMB = file ? file.size / 1024 / 1024 : 0
-  const useStorageUpload = fileSizeMB <= STORAGE_LIMIT_MB
 
   const handleCancel = async () => {
     cancelledRef.current = true
@@ -90,36 +86,22 @@ export function UploadPlaylist() {
       if (plErr) throw plErr
       playlistIdRef.current = playlist.id
 
-      let storagePath: string | null  = null
-      let fileContent: string | null  = null
+      let storagePath: string | null = null
 
-      // ── 2. Arquivo: storage (≤48MB) ou leitura em memória (>48MB) ───────────
+      // ── 2. Arquivo: sempre vai pro Supabase Storage ─────────────────────────
       if (mode === 'file' && file) {
-        if (useStorageUpload) {
-          // Arquivo pequeno — sobe pro Supabase Storage normalmente
-          setPhase('uploading')
-          const path = `${user.id}/${playlist.id}.m3u`
-          const { error: uploadErr } = await supabase.storage
-            .from('playlists')
-            .upload(path, file, { contentType: 'application/x-mpegurl', upsert: true })
-          if (uploadErr) throw new Error(`Upload falhou: ${uploadErr.message}`)
-          storagePath = path
-        } else {
-          // Arquivo grande (>48MB) — lê no browser, manda conteúdo direto para a API
-          // Evita o limite de 50MB do Supabase Storage Free tier
-          setPhase('uploading')
-          toast(`Arquivo ${fileSizeMB.toFixed(1)}MB — lendo diretamente (bypass storage)`, { duration: 3000 })
-          fileContent = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onprogress = (e) => {
-              if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 40))
-            }
-            reader.onload  = () => resolve(reader.result as string)
-            reader.onerror = () => reject(new Error('Erro ao ler arquivo'))
-            reader.readAsText(file, 'utf-8')
-          })
+        setPhase('uploading')
+        const path = `${user.id}/${playlist.id}.m3u`
+        const { error: uploadErr } = await supabase.storage
+          .from('playlists')
+          .upload(path, file, { contentType: 'application/x-mpegurl', upsert: true })
+        if (uploadErr) {
+          if (uploadErr.message.toLowerCase().includes('size') || uploadErr.message.toLowerCase().includes('limit')) {
+            throw new Error(`Arquivo muito grande para o Storage. Vá em Supabase Dashboard → Storage → Buckets → playlists → Edit → File size limit → 314572800 (300MB)`)
+          }
+          throw new Error(`Upload falhou: ${uploadErr.message}`)
         }
-
+        storagePath = path
         if (cancelledRef.current) { await handleCancel(); return }
       }
 
@@ -131,9 +113,6 @@ export function UploadPlaylist() {
         playlist_id:  playlist.id,
         url:          mode === 'url' ? url.trim() : undefined,
         storage_path: storagePath ?? undefined,
-        // Para arquivos grandes: envia o conteúdo inline
-        // A API detecta `content` e não tenta buscar do storage
-        content:      fileContent ?? undefined,
       }
 
       const resp = await fetch('/api/process_playlist', {
@@ -167,7 +146,11 @@ export function UploadPlaylist() {
 
     } catch (err: any) {
       console.error('[Upload]', err)
-      toast.error(err.message || 'Erro ao processar playlist')
+      const msg: string = err.message || 'Erro ao processar playlist'
+      const friendlyMsg = msg.includes('403')
+        ? 'Provedor IPTV bloqueou o acesso. Baixe o arquivo .m3u e use o modo Arquivo.'
+        : msg
+      toast.error(friendlyMsg, { duration: 8000 })
       setCode(null)
       setStats(null)
     } finally {
@@ -213,7 +196,7 @@ export function UploadPlaylist() {
                 }`}
                 disabled={loading || !!code}
               >
-                {m === 'file' ? `📁 Arquivo (até ${MAX_FILE_MB}MB)` : '🔗 URL (arquivos grandes)'}
+                {m === 'file' ? `📁 Arquivo (até ${MAX_FILE_MB}MB)` : '🔗 URL da playlist'}
               </button>
             ))}
           </div>
@@ -242,16 +225,9 @@ export function UploadPlaylist() {
                 disabled={loading || !!code}
               />
               {file && (
-                <div className="mt-1 flex items-center gap-2">
-                  <p className="text-sm text-gray-400">
-                    {file.name} ({fileSizeMB.toFixed(1)} MB)
-                  </p>
-                  {!useStorageUpload && (
-                    <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
-                      ⚡ bypass storage (arquivo &gt;48MB)
-                    </span>
-                  )}
-                </div>
+                <p className="mt-1 text-sm text-gray-400">
+                  {file.name} ({fileSizeMB.toFixed(1)} MB)
+                </p>
               )}
             </div>
           )}
