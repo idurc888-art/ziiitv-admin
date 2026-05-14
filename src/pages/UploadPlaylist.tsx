@@ -24,6 +24,11 @@ interface Stats {
   inserted: number
 }
 
+// Limite do Supabase Storage Free tier = 50MB
+// Acima disso, lemos o arquivo no browser e enviamos o conteúdo direto para a API
+const STORAGE_LIMIT_MB = 48  // margem de segurança — 48MB para não encostar no limite de 50MB
+const MAX_FILE_MB      = 300  // limite de UI — avisa usuário se passar de 300MB
+
 export function UploadPlaylist() {
   const navigate  = useNavigate()
   const [file, setFile]     = useState<File | null>(null)
@@ -31,13 +36,15 @@ export function UploadPlaylist() {
   const [mode, setMode]     = useState<'file' | 'url'>('url')
   const [loading, setLoading] = useState(false)
   const [phase, setPhase]   = useState<Phase>('')
+  const [progress, setProgress] = useState(0)
   const [code, setCode]     = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [stats, setStats]   = useState<Stats | null>(null)
   const cancelledRef        = useRef(false)
   const playlistIdRef       = useRef<string | null>(null)
 
-  const MAX_FILE_MB = 100
+  const fileSizeMB = file ? file.size / 1024 / 1024 : 0
+  const useStorageUpload = fileSizeMB <= STORAGE_LIMIT_MB
 
   const handleCancel = async () => {
     cancelledRef.current = true
@@ -51,18 +58,20 @@ export function UploadPlaylist() {
     }
     setLoading(false)
     setPhase('')
+    setProgress(0)
     toast('Upload cancelado')
   }
 
   const handleUpload = async () => {
-    if (mode === 'file' && !file)           { toast.error('Selecione um arquivo .m3u'); return }
-    if (mode === 'url'  && !url.trim())     { toast.error('Cole a URL da playlist'); return }
-    if (mode === 'file' && file && file.size > MAX_FILE_MB * 1024 * 1024) {
+    if (mode === 'file' && !file)       { toast.error('Selecione um arquivo .m3u'); return }
+    if (mode === 'url' && !url.trim())  { toast.error('Cole a URL da playlist'); return }
+    if (mode === 'file' && file && fileSizeMB > MAX_FILE_MB) {
       toast.error(`Arquivo maior que ${MAX_FILE_MB}MB — use URL`); return
     }
 
     setLoading(true)
     setStats(null)
+    setProgress(0)
     cancelledRef.current   = false
     playlistIdRef.current  = null
 
@@ -81,26 +90,50 @@ export function UploadPlaylist() {
       if (plErr) throw plErr
       playlistIdRef.current = playlist.id
 
-      let storagePath: string | null = null
+      let storagePath: string | null  = null
+      let fileContent: string | null  = null
 
-      // ── 2. Se arquivo: sobe pro Supabase Storage ────────────────────────────
+      // ── 2. Arquivo: storage (≤48MB) ou leitura em memória (>48MB) ───────────
       if (mode === 'file' && file) {
-        setPhase('uploading')
-        const path = `${user.id}/${playlist.id}.m3u`
-        const { error: uploadErr } = await supabase.storage
-          .from('playlists')
-          .upload(path, file, { contentType: 'application/x-mpegurl', upsert: true })
-        if (uploadErr) throw new Error(`Upload falhou: ${uploadErr.message}`)
-        storagePath = path
+        if (useStorageUpload) {
+          // Arquivo pequeno — sobe pro Supabase Storage normalmente
+          setPhase('uploading')
+          const path = `${user.id}/${playlist.id}.m3u`
+          const { error: uploadErr } = await supabase.storage
+            .from('playlists')
+            .upload(path, file, { contentType: 'application/x-mpegurl', upsert: true })
+          if (uploadErr) throw new Error(`Upload falhou: ${uploadErr.message}`)
+          storagePath = path
+        } else {
+          // Arquivo grande (>48MB) — lê no browser, manda conteúdo direto para a API
+          // Evita o limite de 50MB do Supabase Storage Free tier
+          setPhase('uploading')
+          toast(`Arquivo ${fileSizeMB.toFixed(1)}MB — lendo diretamente (bypass storage)`, { duration: 3000 })
+          fileContent = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onprogress = (e) => {
+              if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 40))
+            }
+            reader.onload  = () => resolve(reader.result as string)
+            reader.onerror = () => reject(new Error('Erro ao ler arquivo'))
+            reader.readAsText(file, 'utf-8')
+          })
+        }
+
         if (cancelledRef.current) { await handleCancel(); return }
       }
 
       // ── 3. Chama a API Python para processar ────────────────────────────────
       setPhase('processing')
-      const apiBody = {
+      setProgress(45)
+
+      const apiBody: Record<string, unknown> = {
         playlist_id:  playlist.id,
         url:          mode === 'url' ? url.trim() : undefined,
         storage_path: storagePath ?? undefined,
+        // Para arquivos grandes: envia o conteúdo inline
+        // A API detecta `content` e não tenta buscar do storage
+        content:      fileContent ?? undefined,
       }
 
       const resp = await fetch('/api/process_playlist', {
@@ -123,12 +156,14 @@ export function UploadPlaylist() {
       }
 
       setStats(result)
+      setProgress(90)
 
       // ── 4. Gera código de pareamento ────────────────────────────────────────
       setPhase('saving')
       const { data: codeData, error: codeErr } = await supabase.functions.invoke('generate-code')
       if (codeErr) throw codeErr
       setCode(codeData.code)
+      setProgress(100)
 
     } catch (err: any) {
       console.error('[Upload]', err)
@@ -149,21 +184,27 @@ export function UploadPlaylist() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const reset = () => { setCode(null); setStats(null); setFile(null); setUrl('') }
+  const reset = () => {
+    setCode(null)
+    setStats(null)
+    setFile(null)
+    setUrl('')
+    setProgress(0)
+  }
 
   return (
     <div className="space-y-6">
       <Header
         title="Upload de Playlist"
-        description="Processa M3U no servidor — séries agrupadas, sem limite de títulos"
+        description="Processa M3U via Worker, enriquece com TMDB e gera código para a TV"
       />
 
       <Card className="max-w-2xl">
         <div className="space-y-4">
 
-          {/* Modo: arquivo ou URL */}
+          {/* Modo: URL ou arquivo */}
           <div className="flex gap-2">
-            {(['url', 'file'] as const).map(m => (
+            {(['file', 'url'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -172,7 +213,7 @@ export function UploadPlaylist() {
                 }`}
                 disabled={loading || !!code}
               >
-                {m === 'url' ? '🔗 URL' : `📁 Arquivo (até ${MAX_FILE_MB}MB)`}
+                {m === 'file' ? `📁 Arquivo (até ${MAX_FILE_MB}MB)` : '🔗 URL (arquivos grandes)'}
               </button>
             ))}
           </div>
@@ -201,9 +242,16 @@ export function UploadPlaylist() {
                 disabled={loading || !!code}
               />
               {file && (
-                <p className="mt-1 text-sm text-gray-400">
-                  {file.name} — {(file.size / 1024 / 1024).toFixed(1)} MB
-                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="text-sm text-gray-400">
+                    {file.name} ({fileSizeMB.toFixed(1)} MB)
+                  </p>
+                  {!useStorageUpload && (
+                    <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
+                      ⚡ bypass storage (arquivo &gt;48MB)
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -229,16 +277,21 @@ export function UploadPlaylist() {
           )}
 
           {/* Progresso */}
-          {loading && phase && (
+          {loading && (
             <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-white text-sm font-medium">{PHASE_LABEL[phase]}</span>
-              </div>
-              {phase === 'processing' && (
-                <p className="text-xs text-gray-500 ml-7">
-                  Isso leva 10–30s dependendo do tamanho da lista...
-                </p>
+              {phase && (
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-white text-sm font-medium">{PHASE_LABEL[phase]}</span>
+                </div>
+              )}
+              {progress > 0 && (
+                <div className="w-full bg-gray-800 rounded-full h-1.5">
+                  <div
+                    className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               )}
             </div>
           )}
@@ -247,10 +300,10 @@ export function UploadPlaylist() {
           {stats && !code && (
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Entradas brutas', value: stats.raw.toLocaleString('pt-BR') },
+                { label: 'Entradas brutas',  value: stats.raw.toLocaleString('pt-BR') },
                 { label: 'Séries agrupadas', value: stats.series.toLocaleString('pt-BR') },
-                { label: 'Filmes', value: stats.movies.toLocaleString('pt-BR') },
-                { label: 'TV ao vivo', value: stats.live.toLocaleString('pt-BR') },
+                { label: 'Filmes',           value: stats.movies.toLocaleString('pt-BR') },
+                { label: 'TV ao vivo',       value: stats.live.toLocaleString('pt-BR') },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-gray-800 rounded-lg p-3">
                   <p className="text-xs text-gray-400">{label}</p>
@@ -264,14 +317,14 @@ export function UploadPlaylist() {
           {code && (
             <div className="p-6 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-white mb-1">✅ Pronto!</h3>
+                <h3 className="text-lg font-semibold text-white mb-1">✅ Código Gerado!</h3>
                 {stats && (
                   <p className="text-sm text-gray-400">
-                    {stats.series.toLocaleString('pt-BR')} séries · {stats.movies.toLocaleString('pt-BR')} filmes · {stats.live.toLocaleString('pt-BR')} canais ao vivo
+                    {stats.series.toLocaleString('pt-BR')} séries · {stats.movies.toLocaleString('pt-BR')} filmes · {stats.live.toLocaleString('pt-BR')} TV ao vivo
                   </p>
                 )}
               </div>
-              <p className="text-gray-300 text-sm">Digite na TV para acessar:</p>
+              <p className="text-gray-300 text-sm">Digite na TV para acessar os canais:</p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 px-4 py-3 bg-black/50 rounded-lg">
                   <code className="text-2xl font-mono font-bold text-purple-400">{code}</code>
