@@ -251,6 +251,27 @@ export function LinkPage() {
                 {submitting ? 'Enviando...' : 'Receber link por e-mail'}
               </button>
             </form>
+
+            {/* Divisor */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>ou</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+            </div>
+
+            {/* Sem cadastro */}
+            <button
+              type="button"
+              onClick={() => setStep('form')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
+            >
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', textAlign: 'center', lineHeight: 1.5 }}>
+                Continuar sem cadastro
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', textAlign: 'center', marginTop: 2 }}>
+                Grátis por 7 dias — pediremos cadastro depois
+              </div>
+            </button>
           </div>
         )}
 
