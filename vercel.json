@@ -1,5 +1,13 @@
 {
   "buildCommand": "vite build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "functions": {
+    "api/process_playlist.py": {
+      "runtime": "python3.12",
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }

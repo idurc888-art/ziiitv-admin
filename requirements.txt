@@ -1,0 +1,2 @@
+# Sem dependências externas no parser — usa só stdlib Python
+# Futuro: httpx para TMDB assíncrono na api/enrich_titles.py
