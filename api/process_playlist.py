@@ -17,17 +17,16 @@ CORS = {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-# ── Episode detection — ordem importa: mais específico primeiro ───────────────
+# ── Episode detection ─────────────────────────────────────────────────────────
 EPISODE_PATTERNS = [
-    (re.compile(r'\b[ST]\s*0*(\d{1,2})\s*[Ex]\s*0*(\d{1,3})\b', re.I), 'full'),  # S01E01, T01E01
-    (re.compile(r'\b0*(\d{1,2})\s*x\s*0*(\d{1,3})\b'), 'full'),                   # 1x01
+    (re.compile(r'\b[ST]\s*0*(\d{1,2})\s*[Ex]\s*0*(\d{1,3})\b', re.I), 'full'),
+    (re.compile(r'\b0*(\d{1,2})\s*x\s*0*(\d{1,3})\b'), 'full'),
     (re.compile(r'\bSeas(?:on)?\s*0*(\d{1,2})\s*Ep(?:isode)?\s*0*(\d{1,3})\b', re.I), 'full'),
     (re.compile(r'\bTemporada\s*0*(\d{1,2})\s*Epis[oó]dio\s*0*(\d{1,3})\b', re.I), 'full'),
-    (re.compile(r'\bEP[IS]?\s*\.?\s*0*(\d{1,3})\b', re.I), 'ep_only'),            # EP01 → season 1
-    (re.compile(r'\b[ST]\s*0*(\d{1,2})\b', re.I), 'season_only'),                 # T01 sozinho
+    (re.compile(r'\bEP[IS]?\s*\.?\s*0*(\d{1,3})\b', re.I), 'ep_only'),
+    (re.compile(r'\b[ST]\s*0*(\d{1,2})\b', re.I), 'season_only'),
 ]
 
-# ── Streaming — mais longo primeiro para evitar match parcial ─────────────────
 STREAMING_MAP = [
     ('apple tv+', 'apple'), ('apple tv', 'apple'),
     ('amazon prime', 'amazon'), ('prime video', 'amazon'),
@@ -64,13 +63,10 @@ QUALITY_ORDER = ['4K', 'FHD', 'HD', 'SD', 'UNKNOWN']
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def norm(s):
-    """Remove acentos e lowercase — para comparar títulos."""
     return unicodedata.normalize('NFD', s.lower()).encode('ascii', 'ignore').decode().strip()
-
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
-
 
 def detect_streaming(name, group):
     combined = norm(f"{group or ''} {name}")
@@ -79,13 +75,11 @@ def detect_streaming(name, group):
             return val
     return None
 
-
 def detect_quality(name):
     for pattern, q in QUALITY_PATTERNS:
         if pattern.search(name):
             return q
     return 'UNKNOWN'
-
 
 def detect_dub(name):
     n = name.upper()
@@ -95,9 +89,7 @@ def detect_dub(name):
         return 'L'
     return None
 
-
 def extract_episode(raw):
-    """Extrai (season, episode) do nome BRUTO — antes de qualquer limpeza."""
     for pattern, mode in EPISODE_PATTERNS:
         m = pattern.search(raw)
         if not m:
@@ -110,53 +102,39 @@ def extract_episode(raw):
             return int(m.group(1)), None
     return None
 
-
 def clean_title(raw):
-    """Remove prefixos de streaming, marcadores técnicos, episódios e lixo."""
     s = raw
-    # Remove prefixo de streaming no início: "NETFLIX |", "| HBO |"
     s = STREAMING_PREFIX_RE.sub('', s)
     s = re.sub(r'\|\s*(?:NETFLIX|AMAZON|PRIME|HBO|DISNEY|STAR|PARAMOUNT|APPLE|GLOBO|CRUNCHYROLL|TELECINE)\s*$', '', s, flags=re.I)
-    # Remove label de categoria: "SÉRIE |", "FILME:"
     s = re.sub(r'^(?:S[EÉ]RIES?|FILMES?|MOVIES?|ANIMES?)[\s|:]+', '', s, flags=re.I)
-    # Remove colchetes, chaves e parênteses
     s = re.sub(r'\[[^\]]*\]|\{[^}]*\}|\([^)]*\)', '', s)
-    # Remove códigos de episódio
     s = re.sub(r'\b[ST]\s*\d{1,2}\s*[Ex]\s*\d{1,3}\b', '', s, flags=re.I)
     s = re.sub(r'\b\d{1,2}\s*x\s*\d{1,3}\b', '', s)
     s = re.sub(r'\bEP[IS]?\s*\.?\s*\d{1,3}\b', '', s, flags=re.I)
     s = re.sub(r'\bSeas(?:on)?\s+\d+\b|\bTemporada\s+\d+\b', '', s, flags=re.I)
-    # Remove qualidade e codec
     s = re.sub(r'\b(4K|UHD|2160[Pp]?|FHD|FULL[\s.\-]?HD|1080[Pp]?|HD|720[Pp]?|SD|480[Pp]?|360[Pp]?|H\.?265|H\.?264|HEVC|AVC)\b', '', s, flags=re.I)
-    # Remove dub/leg
     s = re.sub(r'\b(DUAL|DUB(?:LADO)?|LEG(?:ENDADO)?|PT-?BR|LEGENDAS|SUB(?:TITULO)?)\b', '', s, flags=re.I)
-    # Remove ano isolado
     s = re.sub(r'\b(?:19|20)\d{2}\b', '', s)
-    # Remove VOD, VIP, etc
     s = re.sub(r'\b(VOD|VIP|PREMIUM|PLUS|ULTRA|ONLINE)\b', '', s, flags=re.I)
-    # Limpa separadores e espaços extras
-    s = re.sub(r'[|_.\-–—:]+', ' ', s)
+    s = re.sub(r'[|_.\-\u2013\u2014:]+', ' ', s)
     s = re.sub(r'\s{2,}', ' ', s).strip()
     return s.title() if s else ''
-
 
 def get_group_prefix(group):
     if not group:
         return ''
     return norm(re.split(r'[|:]', group)[0])
 
-
 def detect_type(raw_name, group):
     prefix = get_group_prefix(group)
     if GROUP_LIVE.match(prefix):   return 'live'
     if GROUP_MOVIE.match(prefix):  return 'movie'
     if GROUP_SERIES.match(prefix): return 'series'
-    # Fallback: nome bruto tem padrão de episódio?
     if extract_episode(raw_name):  return 'series'
     return 'live'
 
 
-# ── Parser ────────────────────────────────────────────────────────────────────
+# ── Parser M3U ────────────────────────────────────────────────────────────────
 
 def parse_m3u(content):
     channels, current = [], None
@@ -181,12 +159,8 @@ def parse_m3u(content):
 # ── Pipeline principal ────────────────────────────────────────────────────────
 
 def process_channels(raw_channels):
-    """
-    Classifica → normaliza → agrupa episódios → dedup.
-    Retorna: { series: [...], movies: [...], live: [...] }
-    """
-    series_map = {}   # norm(title) → entry
-    movie_map  = {}   # norm(title) → entry
+    series_map = {}
+    movie_map  = {}
     live_seen  = set()
     live_list  = []
 
@@ -201,7 +175,6 @@ def process_channels(raw_channels):
 
         ctype = detect_type(name, group)
 
-        # ── Live TV: só agrupa por URL ────────────────────────────────────────
         if ctype == 'live':
             if url not in live_seen:
                 live_seen.add(url)
@@ -217,19 +190,17 @@ def process_channels(raw_channels):
                 })
             continue
 
-        # ── Extrai episódio ANTES de limpar o nome ────────────────────────────
-        ep         = extract_episode(name) if ctype == 'series' else None
-        streaming  = detect_streaming(name, group)
-        quality    = detect_quality(name)
-        dub        = detect_dub(name)
+        ep          = extract_episode(name) if ctype == 'series' else None
+        streaming   = detect_streaming(name, group)
+        quality     = detect_quality(name)
+        dub         = detect_dub(name)
         title_clean = clean_title(name)
 
         if not title_clean or len(title_clean) < 2:
             continue
 
         title_key = norm(title_clean)
-
-        stream = {'u': url, 'q': quality}
+        stream    = {'u': url, 'q': quality}
         if dub:
             stream['dub'] = dub
         if ep and ep[1]:
@@ -239,17 +210,14 @@ def process_channels(raw_channels):
 
         if title_key in target:
             entry = target[title_key]
-            # Dedup por URL exata
             if not any(s['u'] == url for s in entry['streams']):
                 entry['streams'].append(stream)
-            # Acumula episódios na temporada
             if ep and ep[0] and ep[1]:
                 seasons = entry['seasons']
                 if ep[0] not in seasons:
                     seasons[ep[0]] = []
                 if ep[1] not in seasons[ep[0]]:
                     seasons[ep[0]].append(ep[1])
-            # Preferir fonte com streaming identificado
             if not entry['streaming'] and streaming:
                 entry['streaming'] = streaming
             if not entry['logo'] and logo:
@@ -269,7 +237,6 @@ def process_channels(raw_channels):
                 'enriched':     False,
             }
 
-    # Ordena streams por qualidade e episódios por número
     for entry in list(series_map.values()) + list(movie_map.values()):
         entry['streams'].sort(
             key=lambda s: QUALITY_ORDER.index(s['q']) if s['q'] in QUALITY_ORDER else 99
@@ -327,6 +294,59 @@ def save_channels(playlist_id, user_id, channels):
     return inserted
 
 
+# ── Fetch URL com fallback de headers IPTV ───────────────────────────────────
+
+IPTV_HEADERS = [
+    # Tenta simular player de TV comum
+    {
+        'User-Agent': 'Lavf/58.76.100',
+        'Accept': '*/*',
+        'Connection': 'keep-alive',
+    },
+    # Tenta simular VLC
+    {
+        'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+        'Accept': '*/*',
+    },
+    # Tenta simular browser Android TV
+    {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SmartTV) AppleWebKit/537.36',
+        'Accept': 'application/x-mpegURL, application/vnd.apple.mpegurl, */*',
+        'Referer': '',
+    },
+    # Fallback genérico
+    {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept': '*/*',
+    },
+]
+
+
+def fetch_m3u_url(url):
+    """Tenta baixar M3U com múltiplos sets de headers. Retorna conteúdo ou lança exceção."""
+    last_error = None
+    for headers in IPTV_HEADERS:
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                content = resp.read().decode('utf-8', errors='replace')
+                if content.strip().startswith('#EXTM3U') or '#EXTINF' in content[:500]:
+                    return content
+                # Se retornou algo mas não parece M3U, continua tentando
+                last_error = Exception(f'Resposta não é M3U válido (primeiros chars: {content[:80]!r})')
+        except urllib.error.HTTPError as e:
+            last_error = Exception(f'HTTP {e.code}: {e.reason} — provedor bloqueou a requisição')
+            if e.code in (401, 403):
+                # 401/403 é bloqueio definitivo, não adianta tentar outros headers
+                raise Exception(
+                    f'Acesso bloqueado pelo provedor IPTV (HTTP {e.code}). '
+                    'Baixe o arquivo .m3u manualmente e use o modo Arquivo.'
+                )
+        except Exception as e:
+            last_error = e
+    raise last_error or Exception('Não foi possível baixar a lista M3U')
+
+
 # ── Handler Vercel ────────────────────────────────────────────────────────────
 
 class handler(BaseHTTPRequestHandler):
@@ -343,83 +363,77 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         playlist_id = None
         try:
-            length       = int(self.headers.get('Content-Length', 0))
-            body         = json.loads(self.rfile.read(length))
-            playlist_id  = body.get('playlist_id')
-            url          = body.get('url')
-            storage_path = body.get('storage_path')
-            source       = body.get('source')  # 'raw_channels' para arquivos grandes
+            length  = int(self.headers.get('Content-Length', 0))
+            raw_body = self.rfile.read(length)
 
-            valid = playlist_id and (url or storage_path or source == 'raw_channels')
-            if not valid:
-                return self._error(400, 'Precisa de playlist_id e (url, storage_path ou source=raw_channels)')
+            # Detecta body truncado (< Content-Length real)
+            if len(raw_body) < length:
+                return self._error(400, f'Body truncado: esperado {length} bytes, recebeu {len(raw_body)}. Arquivo muito grande para este endpoint.')
+
+            body = json.loads(raw_body)
+            playlist_id    = body.get('playlist_id')
+            url            = body.get('url')
+            storage_path   = body.get('storage_path')
+            content_inline = body.get('content')       # arquivo pequeno direto
+            from_db        = body.get('from_db', False) # modo: canais já estão no banco (batch do browser)
+
+            if not playlist_id:
+                return self._error(400, 'Falta playlist_id')
+
+            if not from_db and not url and not storage_path and not content_inline:
+                return self._error(400, 'Precisa de: url, storage_path, content ou from_db=true')
+
+            # Busca playlist info
+            pl_rows = sb('GET', f'playlists?id=eq.{playlist_id}&select=content_hash,user_id', prefer='')
+            if not pl_rows:
+                return self._error(404, f'Playlist {playlist_id} não encontrada')
+            pl      = pl_rows[0]
+            user_id = pl.get('user_id')
+            if not user_id:
+                return self._error(400, 'user_id não encontrado na playlist')
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {'status': 'processing'})
 
-            pl_rows = sb('GET', f'playlists?id=eq.{playlist_id}&select=content_hash,user_id', prefer='')
-            pl = pl_rows[0] if pl_rows else {}
-            user_id = pl.get('user_id')
-            if not user_id:
-                raise Exception('user_id não encontrado na playlist')
-
-            # ── Obtém os canais brutos ────────────────────────────────────────
-            if source == 'raw_channels':
-                # Browser já fez o parse e inseriu na tabela raw_channels
-                raw_rows = []
-                limit, offset = 10000, 0
+            # ── MODO from_db: canais raw já foram salvos pelo browser em batches ──
+            if from_db:
+                # Lê os canais raw da tabela channels (content_type IS NULL = raw ainda não processado)
+                # Busca em páginas de 1000
+                all_raw = []
+                offset  = 0
                 while True:
-                    page = sb('GET', f'raw_channels?playlist_id=eq.{playlist_id}&select=name,group_name,logo,url&limit={limit}&offset={offset}', prefer='')
+                    page = sb('GET',
+                        f'channels?playlist_id=eq.{playlist_id}&enriched=eq.false&select=name,group_name,logo_url,streams&order=id&limit=1000&offset={offset}',
+                        prefer=''
+                    )
                     if not page:
                         break
-                    raw_rows.extend(page)
-                    if len(page) < limit:
+                    all_raw.extend(page)
+                    if len(page) < 1000:
                         break
-                    offset += limit
-                # Limpa staging imediatamente
-                sb('DELETE', f'raw_channels?playlist_id=eq.{playlist_id}')
-                raw = [{'name': r['name'], 'group': r['group_name'], 'logo': r['logo'], 'url': r['url']} for r in raw_rows]
-                # Hash baseado nas primeiras 5K URLs
-                sample = ''.join(r['url'] for r in raw_rows[:5000])
-                content_hash = hashlib.sha256(sample.encode()).hexdigest()[:32]
-            elif url:
-                req = urllib.request.Request(url, headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                    'Accept': '*/*',
-                })
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    content = resp.read().decode('utf-8', errors='replace')
-                raw = parse_m3u(content)
-                content_hash = hashlib.sha256(content[:50000].encode()).hexdigest()[:32]
-            else:
-                req = urllib.request.Request(
-                    f"{SUPABASE_URL}/storage/v1/object/{storage_path}",
-                    headers={'Authorization': f'Bearer {SUPABASE_KEY}'},
-                )
-                with urllib.request.urlopen(req) as resp:
-                    content = resp.read().decode('utf-8', errors='replace')
-                raw = parse_m3u(content)
-                content_hash = hashlib.sha256(content[:50000].encode()).hexdigest()[:32]
+                    offset += 1000
 
-            # ── Dedup por hash ────────────────────────────────────────────────
-            if pl.get('content_hash') == content_hash:
-                sb('PATCH', f'playlists?id=eq.{playlist_id}', {
-                    'status': 'ready',
-                    'processed_at': now_iso(),
-                })
-                return self._json({'success': True, 'skipped': True, 'reason': 'content_unchanged'})
+                if not all_raw:
+                    return self._error(400, 'Nenhum canal raw encontrado no banco para esta playlist. O browser enviou os batches?')
 
-            # ── Pipeline ──────────────────────────────────────────────────────
-            result       = process_channels(raw)
-            series       = result['series']
-            movies       = result['movies']
-            live         = result['live']
-            all_channels = series + movies + live
+                # Converte formato do banco para formato do parser
+                raw_channels = [
+                    {
+                        'name':  r.get('name', ''),
+                        'group': r.get('group_name'),
+                        'logo':  r.get('logo_url'),
+                        'url':   (r.get('streams') or [{}])[0].get('u', '') if r.get('streams') else '',
+                    }
+                    for r in all_raw
+                ]
 
-            sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
-            inserted = save_channels(playlist_id, user_id, all_channels)
+                # Limpa os canais raw antes de salvar os processados
+                sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
 
-            try:
-                enrichable = len(series) + len(movies)
+                result    = process_channels(raw_channels)
+                all_ch    = result['series'] + result['movies'] + result['live']
+                inserted  = save_channels(playlist_id, user_id, all_ch)
+
+                enrichable = len(result['series']) + len(result['movies'])
                 if enrichable > 0:
                     sb('POST', 'enrich_jobs', [{
                         'playlist_id':     playlist_id,
@@ -427,8 +441,62 @@ class handler(BaseHTTPRequestHandler):
                         'total_count':     enrichable,
                         'processed_count': 0,
                     }])
-            except Exception:
-                pass
+
+                sb('PATCH', f'playlists?id=eq.{playlist_id}', {
+                    'status':        'ready',
+                    'channel_count': inserted,
+                    'processed_at':  now_iso(),
+                    'error_message': None,
+                })
+
+                return self._json({
+                    'success':  True,
+                    'mode':     'from_db',
+                    'raw':      len(all_raw),
+                    'series':   len(result['series']),
+                    'movies':   len(result['movies']),
+                    'live':     len(result['live']),
+                    'inserted': inserted,
+                })
+
+            # ── MODO normal: busca o conteúdo e processa aqui ─────────────────
+            if content_inline:
+                content = content_inline
+            elif url:
+                content = fetch_m3u_url(url)
+            else:
+                req = urllib.request.Request(
+                    f"{SUPABASE_URL}/storage/v1/object/{storage_path}",
+                    headers={'Authorization': f'Bearer {SUPABASE_KEY}'},
+                )
+                with urllib.request.urlopen(req) as resp:
+                    content = resp.read().decode('utf-8', errors='replace')
+
+            # Hash para evitar reprocessamento desnecessário
+            content_hash = hashlib.sha256(content[:50000].encode()).hexdigest()[:32]
+
+            if pl.get('content_hash') == content_hash:
+                sb('PATCH', f'playlists?id=eq.{playlist_id}', {
+                    'status':       'ready',
+                    'processed_at': now_iso(),
+                })
+                return self._json({'success': True, 'skipped': True, 'reason': 'content_unchanged'})
+
+            raw    = parse_m3u(content)
+            result = process_channels(raw)
+            all_ch = result['series'] + result['movies'] + result['live']
+
+            sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
+            inserted = save_channels(playlist_id, user_id, all_ch)
+
+            enrichable = len(result['series']) + len(result['movies'])
+            if enrichable > 0:
+                sb('POST', 'enrich_jobs', [{
+                    'playlist_id':     playlist_id,
+                    'status':          'pending',
+                    'total_count':     enrichable,
+                    'processed_count': 0,
+                }])
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {
                 'status':        'ready',
@@ -440,10 +508,11 @@ class handler(BaseHTTPRequestHandler):
 
             self._json({
                 'success':  True,
+                'mode':     'direct',
                 'raw':      len(raw),
-                'series':   len(series),
-                'movies':   len(movies),
-                'live':     len(live),
+                'series':   len(result['series']),
+                'movies':   len(result['movies']),
+                'live':     len(result['live']),
                 'inserted': inserted,
             })
 
