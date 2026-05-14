@@ -47,29 +47,22 @@ QUALITY_PATTERNS = [
     (re.compile(r'\bSD\b|\b480[Pp]?\b|\b360[Pp]?\b'), 'SD'),
 ]
 
-# ── Padrões de grupo — ordem: SERIES e MOVIE têm prioridade sobre LIVE ────────
-# Checa o grupo COMPLETO (não só prefixo) para capturar padrões como
-# "Canais | Series [24H]", "Canais | Kids [24H]", etc.
+# ── Padrões de grupo — todos operam sobre string JA NORMALIZADA (sem acentos) ──
+# IMPORTANTE: detect_type normaliza o grupo antes de checar esses patterns.
+# Isso resolve SERIÉS, SÉRIES, FILMÉ, etc.
 
-# SERIES: grupo contém palavra-chave de série em qualquer parte
 GROUP_SERIES_FULL = re.compile(
-    r'(series?|shows?|novelas?|animes?|sitcom|minisser|temporada|epis[oó]dio|season|episodes?)',
+    r'(series?|serie|shows?|novelas?|animes?|sitcom|minisser|temporada|episodio|season|episodes?)',
     re.I
 )
-
-# MOVIE: grupo contém palavra-chave de filme em qualquer parte
 GROUP_MOVIE_FULL = re.compile(
-    r'(filmes?|movies?|\bvod\b|cinema|lan[cç]amentos?|estreias?|documentar)',
+    r'(filmes?|filme|movies?|\bvod\b|cinema|lancamentos?|estreias?|documentar)',
     re.I
 )
-
-# KIDS: grupo contém kids/infantil → live temático (não série)
 GROUP_KIDS_FULL = re.compile(
-    r'(kids|infantil|crian[cç]as?)',
+    r'(kids|infantil|criancas?)',
     re.I
 )
-
-# LIVE: padrões que indicam canal ao vivo (usado APÓS checar series/movie)
 GROUP_LIVE_FULL = re.compile(
     r'(canais?|live|sport|esport|noticias?|news|abertos?|entretenimento|tv[\s_]|ppv|futebol|jogos?|combate|premiere|music|musica)',
     re.I
@@ -87,7 +80,12 @@ QUALITY_ORDER = ['4K', 'FHD', 'HD', 'SD', 'UNKNOWN']
 # ── Helpers ─────────────────────────────────────────────────────
 
 def norm(s):
+    """Normaliza para ASCII lowercase. Usado para chaves de deduplicacao."""
     return unicodedata.normalize('NFD', s.lower()).encode('ascii', 'ignore').decode().strip()
+
+def norm_group(s):
+    """Remove acentos mas preserva case original (usado para match de padroes de grupo)."""
+    return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode()
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -147,31 +145,27 @@ def clean_title(raw):
 
 def detect_type(raw_name, group):
     """
-    Prioridade de detecção (ordem importa):
-    1. Grupo contém palavra-chave de SÉRIE → 'series'
-    2. Grupo contém palavra-chave de FILME → 'movie'
-    3. Nome do canal contém padrão de episódio → 'series'
-    4. Grupo contém palavra-chave de LIVE → 'live'
-    5. Fallback → 'live'
+    Detecta o tipo do canal com prioridade: series > movie > episodio > live.
 
-    Checa o grupo COMPLETO (não só o prefixo antes do |) para capturar
-    padrões como "Canais | Series [24H]" ou "Canais | Kids [24H]".
+    CRITICO: normaliza acentos do grupo antes do match para resolver
+    SERIÉS / SÉRIES / FILMÉS etc que nao batem em ASCII regex.
     """
-    g = group or ''
+    # Normaliza acentos (SÉRIES -> SERIES, FILMES -> FILMES, etc)
+    g = norm_group(group) if group else ''
 
-    # 1. Serie tem prioridade máxima — grupo completo
+    # 1. Serie tem prioridade máxima
     if GROUP_SERIES_FULL.search(g):
         return 'series'
 
-    # 2. Filme — grupo completo
+    # 2. Filme
     if GROUP_MOVIE_FULL.search(g):
         return 'movie'
 
-    # 3. Episódio detectado no nome
+    # 3. Episodio no nome do canal
     if extract_episode(raw_name):
         return 'series'
 
-    # 4. Live explícito (inclui kids que são canais ao vivo temáticos)
+    # 4. Live / kids
     if GROUP_LIVE_FULL.search(g) or GROUP_KIDS_FULL.search(g):
         return 'live'
 
@@ -319,7 +313,6 @@ def fetch_raw_channels_from_db(playlist_id):
     """
     Keyset pagination usando id como cursor.
     Evita OFFSET alto que causa statement timeout em tabelas grandes.
-    O index idx_raw_channels_playlist_id_keyset (playlist_id, id) garante O(log n) em cada page.
     """
     all_raw = []
     last_id = None
@@ -380,7 +373,7 @@ def save_channels(playlist_id, user_id, channels):
     return inserted
 
 
-# ── Fetch M3U: tenta Edge Function proxy primeiro, depois direto ───────────────────
+# ── Fetch M3U ──────────────────────────────────────────────────────────
 
 IPTV_HEADERS_DIRECT = [
     {'User-Agent': 'Lavf/58.76.100', 'Accept': '*/*', 'Connection': 'keep-alive'},
@@ -391,13 +384,11 @@ IPTV_HEADERS_DIRECT = [
 
 
 def fetch_via_edge_proxy(m3u_url):
-    """Tenta buscar a M3U via Supabase Edge Function (IP diferente de Vercel/AWS)."""
     proxy_url = f"{SUPABASE_URL}/functions/v1/m3u-proxy"
     payload   = json.dumps({'url': m3u_url}).encode()
     req       = urllib.request.Request(proxy_url, data=payload, method='POST')
     req.add_header('Content-Type', 'application/json')
     req.add_header('Authorization', f'Bearer {SUPABASE_KEY}')
-
     try:
         with urllib.request.urlopen(req, timeout=35) as resp:
             result = json.loads(resp.read())
@@ -407,7 +398,7 @@ def fetch_via_edge_proxy(m3u_url):
                     return content, 'edge_proxy'
             if result.get('blocked'):
                 raise Exception(
-                    f"Provedor IPTV bloqueou o acesso (HTTP 403/401). "
+                    "Provedor IPTV bloqueou o acesso (HTTP 403/401). "
                     "Baixe o arquivo .m3u manualmente e use o modo Arquivo."
                 )
             raise Exception(result.get('error', 'Edge proxy n\u00e3o retornou conte\u00fado M3U v\u00e1lido'))
@@ -417,7 +408,6 @@ def fetch_via_edge_proxy(m3u_url):
 
 
 def fetch_m3u_direct(url):
-    """Tenta buscar diretamente com múltiplos User-Agents."""
     last_error = None
     for headers in IPTV_HEADERS_DIRECT:
         try:
@@ -426,7 +416,7 @@ def fetch_m3u_direct(url):
                 content = resp.read().decode('utf-8', errors='replace')
                 if content.strip().startswith('#EXTM3U') or '#EXTINF' in content[:500]:
                     return content, 'direct'
-                last_error = Exception(f'Resposta n\u00e3o \u00e9 M3U v\u00e1lido')
+                last_error = Exception('Resposta n\u00e3o \u00e9 M3U v\u00e1lido')
         except urllib.error.HTTPError as e:
             last_error = Exception(f'HTTP {e.code}: {e.reason}')
             if e.code in (401, 403):
@@ -440,12 +430,6 @@ def fetch_m3u_direct(url):
 
 
 def fetch_m3u_url(url):
-    """
-    Estratégia em 2 etapas:
-    1. Tenta via Supabase Edge Function (IP diferente, mais chance de passar)
-    2. Se falhar (não por bloqueio), tenta direto do Vercel
-    3. Se bloqueado em qualquer etapa → orienta usar modo Arquivo
-    """
     try:
         content, mode = fetch_via_edge_proxy(url)
         return content
@@ -454,7 +438,6 @@ def fetch_m3u_url(url):
         if 'bloqueou' in proxy_msg or '403' in proxy_msg or '401' in proxy_msg or 'Arquivo' in proxy_msg:
             raise Exception(proxy_msg)
         pass
-
     content, mode = fetch_m3u_direct(url)
     return content
 
@@ -475,7 +458,7 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         playlist_id = None
         try:
-            length  = int(self.headers.get('Content-Length', 0))
+            length   = int(self.headers.get('Content-Length', 0))
             raw_body = self.rfile.read(length)
 
             if len(raw_body) < length:
@@ -504,7 +487,7 @@ class handler(BaseHTTPRequestHandler):
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {'status': 'processing'})
 
-            # ── MODO from_db: lê de raw_channels com keyset pagination ──
+            # ── MODO from_db ──
             if from_db:
                 all_raw = fetch_raw_channels_from_db(playlist_id)
 
@@ -524,9 +507,9 @@ class handler(BaseHTTPRequestHandler):
                 sb('DELETE', f'raw_channels?playlist_id=eq.{playlist_id}')
                 sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
 
-                result    = process_channels(raw_channels)
-                all_ch    = result['series'] + result['movies'] + result['live']
-                inserted  = save_channels(playlist_id, user_id, all_ch)
+                result   = process_channels(raw_channels)
+                all_ch   = result['series'] + result['movies'] + result['live']
+                inserted = save_channels(playlist_id, user_id, all_ch)
 
                 enrichable = len(result['series']) + len(result['movies'])
                 if enrichable > 0:
@@ -554,7 +537,7 @@ class handler(BaseHTTPRequestHandler):
                     'inserted': inserted,
                 })
 
-            # ── MODO normal: busca conteúdo ───────────────────────────────────
+            # ── MODO normal ──
             if content_inline:
                 content = content_inline
             elif url:
