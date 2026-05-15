@@ -24,6 +24,12 @@ import { Homes } from './pages/Homes'
 import { HomeEditor } from './pages/HomeEditor'
 
 import { ClientDashboard } from './pages/client/ClientDashboard'
+import { Navigate } from 'react-router-dom'
+
+function RootRedirect() {
+  const { isAdmin } = useAuthStore()
+  return <Navigate to={isAdmin ? '/admin' : '/client'} replace />
+}
 
 export function App() {
   const initialize = useAuthStore((s) => s.initialize)
@@ -64,9 +70,11 @@ export function App() {
           <Route path="/link" element={<LinkPage />} />
           
           <Route element={<ProtectedRoute />}>
+            {/* Raiz: redireciona para /admin ou /client conforme o tipo */}
+            <Route path="/" element={<RootRedirect />} />
+
+            {/* Rotas de Admin (com Sidebar/Layout) */}
             <Route element={<Layout />}>
-              
-              {/* Rotas de Admin */}
               <Route element={<AdminRoute />}>
                 <Route path="/admin" element={<Dashboard />} />
                 <Route path="/admin/homes" element={<Homes />} />
@@ -81,11 +89,10 @@ export function App() {
                 <Route path="/admin/enrich/:id" element={<EnrichQueue />} />
                 <Route path="/admin/watch-history" element={<WatchHistory />} />
               </Route>
-
-              {/* Rotas de Cliente */}
-              <Route path="/client" element={<ClientDashboard />} />
-              
             </Route>
+
+            {/* Rota de Cliente (sem Sidebar — tem seu próprio layout) */}
+            <Route path="/client" element={<ClientDashboard />} />
           </Route>
         </Routes>
       </BrowserRouter>
