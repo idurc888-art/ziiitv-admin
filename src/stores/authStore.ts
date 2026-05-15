@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import type { User as SupabaseUser, Session } from '@supabase/supabase-js'
+import type { User as SupabaseUser, Session, Subscription } from '@supabase/supabase-js'
 
 interface AuthState {
   user: SupabaseUser | null
@@ -12,52 +12,59 @@ interface AuthState {
   signOut: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+// Mantido fora do store para garantir unsubscribe mesmo se initialize() rodar mais de uma vez
+let authSubscription: Subscription | null = null
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
   isAdmin: false,
   isLoading: true,
 
   initialize: async () => {
+    // Evita listeners duplicados em remounts (Strict Mode, HMR)
+    if (authSubscription) {
+      authSubscription.unsubscribe()
+      authSubscription = null
+    }
+
     const { data: { session } } = await supabase.auth.getSession()
-    console.log('[Auth] Session:', session)
     if (session) {
-      const { data: profile, error } = await supabase
+      const { data: profile } = await supabase
         .from('users')
         .select('role')
         .eq('id', session.user.id)
         .single() as { data: { role: string } | null; error: unknown }
-      console.log('[Auth] Profile:', profile, 'Error:', error)
       set({
         user: session.user,
         session,
         isAdmin: profile?.role === 'admin',
         isLoading: false,
       })
-      console.log('[Auth] isAdmin:', profile?.role === 'admin')
     } else {
       set({ user: null, session: null, isAdmin: false, isLoading: false })
     }
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log('[Auth] State change:', _event, session)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         const { data: profile, error } = await supabase
           .from('users')
           .select('role')
           .eq('id', session.user.id)
           .single() as { data: { role: string } | null; error: unknown }
-        console.log('[Auth] Profile after change:', profile, 'Error:', error)
         set({
           user: session.user,
           session,
-          isAdmin: profile?.role === 'admin',
+          // Se o banco falhar (rede oscilou, timeout), preserva isAdmin atual —
+          // evita derrubar a sessão de um admin num TOKEN_REFRESHED de rotina
+          isAdmin: error || !profile ? get().isAdmin : profile.role === 'admin',
           isLoading: false,
         })
       } else {
         set({ user: null, session: null, isAdmin: false, isLoading: false })
       }
     })
+    authSubscription = subscription
   },
 
   signIn: async (email, password) => {
