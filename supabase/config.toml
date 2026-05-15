@@ -1,0 +1,13 @@
+project_id = "xkhlentrhydviqfgqdhv"
+
+# Funções públicas — chamadas pela TV com anon key (não é JWT)
+# A autenticação é feita internamente pela própria função (código ZIII-XXXX ou device_id)
+[functions.get-channels]
+verify_jwt = false
+
+[functions.delete-device-data]
+verify_jwt = false
+
+# Funções privadas — chamadas pelo admin web com JWT do usuário logado
+# [functions.generate-code]   → verify_jwt = true (padrão)
+# [functions.fetch-m3u]       → verify_jwt = true (padrão)
