@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { AutoEnrichBanner } from '../components/AutoEnrichBanner'
 import { supabase } from '../lib/supabase'
 import { globalChannelCache, globalPlaylistCache } from '../lib/channelCache'
-import { ArrowLeft, Tv, Film, Star, BarChart2, Shield, Search, ChevronRight, Activity, Percent, ArrowDownToLine, Zap } from 'lucide-react'
+import { ArrowLeft, Tv, Film, Star, BarChart2, Shield, Search, ChevronRight, Activity, Percent, ArrowDownToLine, Zap, Link2 } from 'lucide-react'
 
 interface Channel {
   id: string
@@ -46,6 +46,8 @@ export function PlaylistChannels() {
 
   // "dashboard" | "streaming:netflix" | "category:filmes"
   const [activeView, setActiveView] = useState('dashboard')
+  const [linking, setLinking] = useState(false)
+  const [linkResult, setLinkResult] = useState<{ linked: number; total: number; catalog_size: number } | null>(null)
 
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 54 // Multiple of 1, 2 and 3 columns
@@ -162,6 +164,27 @@ export function PlaylistChannels() {
     }
   }, [channels])
 
+  const handleLink = async () => {
+    if (!id) return
+    setLinking(true)
+    setLinkResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('link-playlist', {
+        body: { playlist_id: id },
+      })
+      if (error) throw error
+      setLinkResult(data)
+      // Limpa cache para forçar reload com canonical_ids novos
+      delete (globalChannelCache as any)[id]
+      delete (globalPlaylistCache as any)[id]
+      load(id)
+    } catch (err: any) {
+      alert('Erro ao vincular: ' + err.message)
+    } finally {
+      setLinking(false)
+    }
+  }
+
   const compressionRatio = totalOriginalLinks > 0 
     ? ((1 - (totalTitles / totalOriginalLinks)) * 100).toFixed(1)
     : '0.0'
@@ -208,8 +231,20 @@ export function PlaylistChannels() {
 
   const renderDashboard = () => (
     <div className="space-y-6 animate-in fade-in">
-      {/* Enrich CTA */}
-      <div className="flex justify-end">
+      {/* Ações TMDB */}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {linkResult && (
+          <div className="text-sm text-aqua font-medium">
+            ✅ {linkResult.linked.toLocaleString('pt-BR')} vinculados de {linkResult.total.toLocaleString('pt-BR')} · catálogo: {linkResult.catalog_size.toLocaleString('pt-BR')} títulos
+          </div>
+        )}
+        <button
+          onClick={handleLink}
+          disabled={linking}
+          className="flex items-center gap-2 px-5 py-2.5 bg-aqua hover:bg-aqua-hover disabled:opacity-50 text-base font-bold text-sm rounded-xl transition-all shadow-lg">
+          <Link2 className="w-4 h-4" />
+          {linking ? 'Vinculando...' : 'Vincular ao catálogo'}
+        </button>
         <button
           onClick={() => navigate(`/enrich/${id}`)}
           className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-sm rounded-xl transition-all shadow-lg shadow-orange-900/30">
