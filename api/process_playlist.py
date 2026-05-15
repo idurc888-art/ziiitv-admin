@@ -650,11 +650,14 @@ class handler(BaseHTTPRequestHandler):
                 sb('DELETE', f'raw_channels?playlist_id=eq.{playlist_id}')
                 sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
 
-                result     = process_channels(raw_channels)
-                enrich_map = build_enrich_map(result['series'], result['movies'])
-                all_ch     = result['series'] + result['movies'] + result['live']
-                inserted   = save_channels(playlist_id, user_id, all_ch, enrich_map)
-                enriched   = len(enrich_map)
+                result = process_channels(raw_channels)
+                try:
+                    enrich_map = build_enrich_map(result['series'], result['movies'])
+                except Exception:
+                    enrich_map = {}
+                all_ch   = result['series'] + result['movies'] + result['live']
+                inserted = save_channels(playlist_id, user_id, all_ch, enrich_map)
+                enriched = len(enrich_map)
 
                 sb('PATCH', f'playlists?id=eq.{playlist_id}', {
                     'status':        'ready',
@@ -696,10 +699,13 @@ class handler(BaseHTTPRequestHandler):
                 })
                 return self._json({'success': True, 'skipped': True, 'reason': 'content_unchanged'})
 
-            raw        = parse_m3u(content)
-            result     = process_channels(raw)
-            enrich_map = build_enrich_map(result['series'], result['movies'])
-            all_ch     = result['series'] + result['movies'] + result['live']
+            raw    = parse_m3u(content)
+            result = process_channels(raw)
+            try:
+                enrich_map = build_enrich_map(result['series'], result['movies'])
+            except Exception:
+                enrich_map = {}
+            all_ch = result['series'] + result['movies'] + result['live']
 
             sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
             inserted = save_channels(playlist_id, user_id, all_ch, enrich_map)

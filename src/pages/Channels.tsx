@@ -1,146 +1,162 @@
 import React, { useState, useEffect } from 'react'
 import { Header } from '../components/layout/Header'
 import { Table } from '../components/ui/Table'
-import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
-import { Search, Copy, CheckCircle2, XCircle, ShieldOff } from 'lucide-react'
+import { Search, Copy, Tv2, Film, Clapperboard } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { Channel } from '../types'
 import toast from 'react-hot-toast'
 import { classNames } from '../lib/utils'
+import { supabaseAdmin } from '../lib/supabase'
 
-// Mock Data
-const mockChannels: Channel[] = [
-  { id: '1', playlist_id: '1', user_id: '1', name: 'HBO Max', group_name: 'Filmes', quality: 'FHD', stream_url: 'http://my-provider.tv/live/joao/123/111.ts', active: true, created_at: '2024-03-22T09:15:00Z', canonical_id: 'hbo-max', logo_url: 'http://my-provider.tv/logs/hbo.png' },
-  { id: '2', playlist_id: '1', user_id: '1', name: 'ESPN Brasil', group_name: 'Esportes', quality: 'HD', stream_url: 'http://my-provider.tv/live/joao/123/222.ts', active: true, created_at: '2024-03-22T09:15:00Z', canonical_id: 'espn-br', logo_url: null },
-  { id: '3', playlist_id: '2', user_id: '4', name: 'Telecine Premium', group_name: 'Filmes', quality: '4K', stream_url: 'http://my-provider.tv/live/joao/123/333.ts', active: false, created_at: '2024-03-26T14:05:00Z', canonical_id: 'tc-premium', logo_url: null },
-  { id: '4', playlist_id: '1', user_id: '1', name: 'CNN Brasil', group_name: 'Notícias', quality: 'SD', stream_url: 'http://my-provider.tv/live/joao/123/444.ts', active: true, created_at: '2024-03-22T09:15:00Z', canonical_id: 'cnn-br', logo_url: null },
-]
+interface DbChannel {
+  id: string
+  name: string
+  group_name: string | null
+  logo_url: string | null
+  content_type: string | null
+  streaming: string | null
+  streams: Array<{ u: string; q: string }> | null
+}
+
+const QUALITY_COLORS: Record<string, string> = {
+  '4K':  'border-warning/30 text-warning bg-warning/10',
+  'FHD': 'border-accent/30 text-accent bg-accent/10',
+  'HD':  'border-text-secondary/30 text-text-secondary bg-text-secondary/10',
+  'SD':  'border-text-muted/30 text-text-muted bg-text-muted/10',
+}
+
+const TYPE_ICON: Record<string, React.ReactNode> = {
+  series:  <Clapperboard className="w-4 h-4 text-purple-400" />,
+  movie:   <Film className="w-4 h-4 text-blue-400" />,
+  live:    <Tv2 className="w-4 h-4 text-green-400" />,
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  series: 'Série',
+  movie:  'Filme',
+  live:   'TV ao Vivo',
+}
 
 export function Channels() {
-  const [search, setSearch] = useState('')
+  const [search, setSearch]   = useState('')
   const [loading, setLoading] = useState(true)
+  const [channels, setChannels] = useState<DbChannel[]>([])
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500)
-    return () => clearTimeout(t)
+    async function load() {
+      const { data } = await supabaseAdmin
+        .from('channels')
+        .select('id, name, group_name, logo_url, content_type, streaming, streams')
+        .order('name')
+        .limit(500)
+      setChannels(data || [])
+      setLoading(false)
+    }
+    load()
   }, [])
 
-  const filteredChannels = mockChannels.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) || 
-    c.group_name?.toLowerCase().includes(search.toLowerCase())
+  const filtered = channels.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.group_name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    (c.content_type ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
   const handleCopy = (url: string) => {
     navigator.clipboard.writeText(url)
-    toast.success('URL copiada para a área de transferência', { 
-      icon: '📋',
-      style: { maxWidth: '500px' } 
-    })
+    toast.success('URL copiada', { icon: '📋' })
   }
 
-  const columns: ColumnDef<Channel>[] = [
+  const columns: ColumnDef<DbChannel>[] = [
     {
       accessorKey: 'name',
       header: 'Canal',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          {row.original.logo_url ? (
-            <img src={row.original.logo_url} alt="Logo" className="w-8 h-8 rounded object-contain bg-base" />
-          ) : (
-            <div className="w-8 h-8 rounded bg-elevated border border-border flex items-center justify-center">
-              <span className="text-xs font-mono text-text-muted">TV</span>
+      cell: ({ row }) => {
+        const ch = row.original
+        const topQuality = ch.streams?.[0]?.q
+        return (
+          <div className="flex items-center gap-3">
+            {ch.logo_url ? (
+              <img src={ch.logo_url} alt="" className="w-8 h-8 rounded object-contain bg-base flex-shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded bg-elevated border border-border flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-mono text-text-muted">TV</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <span className="font-medium text-text-primary block truncate">{ch.name}</span>
+              {topQuality && (
+                <span className={classNames('text-xs font-mono px-1 py-0.5 rounded border', QUALITY_COLORS[topQuality] || QUALITY_COLORS['HD'])}>
+                  {topQuality}
+                </span>
+              )}
             </div>
-          )}
-          <span className={classNames('font-medium', row.original.active ? 'text-text-primary' : 'text-text-muted line-through')}>
-            {row.original.name}
-          </span>
-        </div>
-      )
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'content_type',
+      header: 'Tipo',
+      cell: ({ row }) => {
+        const t = row.original.content_type || 'live'
+        return (
+          <div className="flex items-center gap-2">
+            {TYPE_ICON[t]}
+            <span className="text-sm text-text-secondary">{TYPE_LABEL[t] || t}</span>
+          </div>
+        )
+      },
     },
     {
       accessorKey: 'group_name',
       header: 'Grupo',
-      cell: ({ row }) => <span className="text-text-secondary">{row.original.group_name || 'Sem Categoria'}</span>
-    },
-    {
-      accessorKey: 'quality',
-      header: 'Qualidade',
-      cell: ({ row }) => {
-        const q = row.original.quality
-        if (!q) return <span className="text-text-muted">—</span>
-        return (
-          <span className={classNames(
-            'text-xs font-mono px-1.5 py-0.5 rounded border',
-            q === '4K' ? 'border-warning/30 text-warning bg-warning/10' :
-            q === 'FHD' ? 'border-accent/30 text-accent bg-accent/10' :
-            'border-text-secondary/30 text-text-secondary bg-text-secondary/10'
-          )}>
-            {q}
-          </span>
-        )
-      }
-    },
-    {
-      accessorKey: 'active',
-      header: 'Status',
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          {row.original.active ? (
-            <Badge variant="active" label="Ativo" />
-          ) : (
-            <Badge variant="inactive" label="Desativado" />
-          )}
-        </div>
-      )
+        <span className="text-sm text-text-secondary truncate max-w-[150px] block">
+          {row.original.group_name || '—'}
+        </span>
+      ),
     },
     {
-      accessorKey: 'stream_url',
+      id: 'streams_count',
+      header: 'Streams',
+      cell: ({ row }) => (
+        <span className="text-sm text-text-muted">
+          {row.original.streams?.length ?? 0}
+        </span>
+      ),
+    },
+    {
+      id: 'stream_url',
       header: 'Stream URL',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2 max-w-[200px]">
-          <span className="font-mono text-xs text-text-muted truncate">
-            {row.original.stream_url}
-          </span>
-          <button 
-            className="p-1 text-text-muted hover:text-text-primary rounded hover:bg-elevated"
-            onClick={() => handleCopy(row.original.stream_url)}
-            title="Copiar URL"
-          >
-            <Copy className="w-4 h-4" />
-          </button>
-        </div>
-      )
+      cell: ({ row }) => {
+        const url = row.original.streams?.[0]?.u
+        if (!url) return <span className="text-text-muted text-xs">—</span>
+        return (
+          <div className="flex items-center gap-2 max-w-[200px]">
+            <span className="font-mono text-xs text-text-muted truncate">{url}</span>
+            <button
+              className="p-1 text-text-muted hover:text-text-primary rounded hover:bg-elevated flex-shrink-0"
+              onClick={() => handleCopy(url)}
+              title="Copiar URL"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          </div>
+        )
+      },
     },
-    {
-      id: 'actions',
-      header: 'Ações',
-      cell: ({ row }) => (
-        <Button 
-          variant={row.original.active ? "ghost" : "primary"} 
-          size="sm" 
-          icon={row.original.active ? <ShieldOff className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-          onClick={() => {
-            const action = row.original.active ? 'desativado' : 'ativado'
-            toast.success(`Canal ${row.original.name} ${action}!`)
-          }}
-        >
-          {row.original.active ? 'Desativar' : 'Ativar'}
-        </Button>
-      )
-    }
   ]
 
   return (
     <div className="animate-in fade-in duration-500">
-      <Header 
-        title="Canais Tratados" 
-        description="Visualize e gerencie os canais processados no Edge"
+      <Header
+        title="Canais Tratados"
+        description="Visualize os canais processados — séries, filmes e TV ao vivo"
         action={
           <div className="flex bg-surface border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-64">
             <Search className="w-4 h-4 text-text-muted mr-2 flex-shrink-0 mt-0.5" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Buscar canal ou grupo..."
               className="bg-transparent border-none outline-none w-full text-text-primary placeholder:text-text-muted"
               value={search}
@@ -149,12 +165,7 @@ export function Channels() {
           </div>
         }
       />
-
-      <Table 
-        data={filteredChannels} 
-        columns={columns} 
-        loading={loading}
-      />
+      <Table data={filtered} columns={columns} loading={loading} />
     </div>
   )
 }
