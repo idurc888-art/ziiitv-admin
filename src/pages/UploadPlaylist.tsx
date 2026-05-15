@@ -19,11 +19,12 @@ const PHASE_LABEL: Record<Phase, string> = {
 }
 
 interface Stats {
-  raw: number
-  series: number
-  movies: number
-  live: number
-  inserted: number
+  raw:       number
+  series:    number
+  movies:    number
+  live:      number
+  inserted:  number
+  discarded: number
 }
 
 const MAX_FILE_MB = 500
@@ -107,8 +108,9 @@ export function UploadPlaylist() {
         setPhase('processing')
 
         // normalizeStreams faz toda a classificação: live, movie, series, dedup, grouping
-        const channels = normalizeStreams(rawChannels)
+        const { channels, stats: normStats } = normalizeStreams(rawChannels)
         setProgress(30)
+        console.log('[Upload] normStats', normStats)
 
         if (cancelledRef.current) { await handleCancel(); return }
 
@@ -132,6 +134,7 @@ export function UploadPlaylist() {
             canonical_id: null,
             seasons:      ch.seasons ?? null,
             enriched:     false,
+            active:       true,
           }))
 
           const { error } = await (supabase as any).from('channels').insert(batch) as { error: { message: string } | null }
@@ -150,7 +153,7 @@ export function UploadPlaylist() {
         const movies = channels.filter(c => c.contentType === 'movie').length
         const live   = channels.filter(c => c.contentType === 'live').length
 
-        setStats({ raw: rawChannels.length, series, movies, live, inserted })
+        setStats({ raw: rawChannels.length, series, movies, live, inserted, discarded: normStats.discarded })
         setProgress(90)
 
       } else {
@@ -318,14 +321,15 @@ export function UploadPlaylist() {
           {stats && !code && (
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Entradas brutas',  value: stats.raw.toLocaleString('pt-BR') },
-                { label: 'Séries agrupadas', value: stats.series.toLocaleString('pt-BR') },
-                { label: 'Filmes',           value: stats.movies.toLocaleString('pt-BR') },
-                { label: 'TV ao vivo',       value: stats.live.toLocaleString('pt-BR') },
-              ].map(({ label, value }) => (
+                { label: 'Entradas brutas',  value: stats.raw.toLocaleString('pt-BR'),       color: 'text-white' },
+                { label: 'Séries agrupadas', value: stats.series.toLocaleString('pt-BR'),    color: 'text-white' },
+                { label: 'Filmes',           value: stats.movies.toLocaleString('pt-BR'),    color: 'text-white' },
+                { label: 'TV ao vivo',       value: stats.live.toLocaleString('pt-BR'),      color: 'text-white' },
+                { label: 'Descartados',      value: stats.discarded.toLocaleString('pt-BR'), color: stats.discarded > 0 ? 'text-yellow-400' : 'text-white' },
+              ].map(({ label, value, color }) => (
                 <div key={label} className="bg-gray-800 rounded-lg p-3">
                   <p className="text-xs text-gray-400">{label}</p>
-                  <p className="text-lg font-bold text-white">{value}</p>
+                  <p className={`text-lg font-bold ${color}`}>{value}</p>
                 </div>
               ))}
             </div>

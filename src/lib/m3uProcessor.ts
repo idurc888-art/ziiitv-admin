@@ -61,11 +61,15 @@ export interface RawChannel {
 export function parseMiniM3u(text: string): RawChannel[] {
   const channels: RawChannel[] = []
   let current: Omit<RawChannel, 'url'> | null = null
+  let skippedEmpty = 0
+  let skippedOrphan = 0
 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim()
 
     if (line.startsWith('#EXTINF:')) {
+      if (current !== null) skippedOrphan++ // EXTINF anterior sem URL
+
       const attrs: Record<string, string> = {}
       const attrRe = /([\w-]+)="([^"]*)"/g
       let m: RegExpExecArray | null
@@ -75,16 +79,26 @@ export function parseMiniM3u(text: string): RawChannel[] {
       const inlineName = commaIdx >= 0 ? line.slice(commaIdx + 1).trim() : ''
       const name = (attrs['tvg-name'] || inlineName).trim()
 
+      if (!name) skippedEmpty++
       current = {
         name,
         group: attrs['group-title'] || null,
         logo:  attrs['tvg-logo']    || null,
       }
-    } else if (line && !line.startsWith('#') && current?.name) {
-      channels.push({ ...current, url: line })
+    } else if (line && !line.startsWith('#')) {
+      if (current?.name) {
+        channels.push({ ...current, url: line })
+      } else {
+        skippedOrphan++ // URL sem EXTINF precedente ou nome vazio
+      }
       current = null
     }
   }
+  if (current !== null) skippedOrphan++ // EXTINF final sem URL
+
+  console.log(
+    `[M3U] parse: ${channels.length} OK | ${skippedEmpty} nome vazio | ${skippedOrphan} sem URL/EXTINF`,
+  )
   return channels
 }
 
@@ -305,14 +319,7 @@ export function extractGroupInfo(group: string | null): GroupInfo {
   if (/stand.?up/i.test(g)) return { ...BASE_GROUP, contentType: 'standup', genre: 'standup' }
   if (/^shows?\s*$/i.test(g)) return { ...BASE_GROUP, contentType: 'show' }
 
-  // ── LIVE TV ───────────────────────────────────────────────────────────────
-  // Detecta "Canais | Globo", "TV Aberta", "Noticias", "Ao Vivo", etc
-  if (/canais?|tv(s|\b)|abert[ao]s?|\baovivo\b|ao.?vivo|jornal|esportes?/i.test(g)) {
-    return { ...BASE_GROUP, contentType: 'live' }
-  }
-
-  // ── SÉRIES ────────────────────────────────────────────────────────────────
-  // Detecta "Series | Netflix", "Séries Dubladas", "Netflix Séries", "Seriados"
+  // ── SÉRIES — vem ANTES de live para capturar "Canais | Séries [24H]" ──────
   if (/s[eé]riad|s[eé]ries?/i.test(g)) {
     const suffix = g.replace(/s[eé]riad[oa]s?|s[eé]ries?/ig, '').replace(/^[|\/\s:\-]+|[|\/\s:\-]+$/g, '')
     if (/legend/i.test(g)) return { ...BASE_GROUP, contentType: 'series', dubType: 'L' }
@@ -321,15 +328,18 @@ export function extractGroupInfo(group: string | null): GroupInfo {
     return { ...BASE_GROUP, contentType: 'series', streaming }
   }
 
-  // ── FILMES (FALLBACK PARA VOD E EXPLICITOS) ───────────────────────────────
+  // ── FILMES — vem ANTES de live para capturar "Canais | Filmes [24H]" ──────
   if (/filmes?|cinema|lan[çc]amentos?|cine/i.test(g)) {
     const suffix = g.replace(/filmes?|cinema|lan[çc]amentos?|cine/ig, '').replace(/^[|\/\s:\-]+|[|\/\s:\-]+$/g, '')
-
     if (/legend/i.test(g)) return { ...BASE_GROUP, contentType: 'movie', dubType: 'L' }
     if (/\b4k\b/i.test(g)) return { ...BASE_GROUP, contentType: 'movie', dubType: 'D', quality: '4K' }
-    if (/dubl/i.test(g)) return { ...BASE_GROUP, contentType: 'movie', dubType: 'D', genre: normalizeGenre(suffix) }
-    
+    if (/dubl/i.test(g))   return { ...BASE_GROUP, contentType: 'movie', dubType: 'D', genre: normalizeGenre(suffix) }
     return { ...BASE_GROUP, contentType: 'movie', dubType: 'D', genre: normalizeGenre(suffix) }
+  }
+
+  // ── LIVE TV — só chega aqui quem não é série nem filme ───────────────────
+  if (/canais?|tv(s|\b)|abert[ao]s?|\baovivo\b|ao.?vivo|jornal|esportes?/i.test(g)) {
+    return { ...BASE_GROUP, contentType: 'live' }
   }
 
   return BASE_GROUP
@@ -397,7 +407,14 @@ export function slugify(name: string): string {
 
 // ─── normalizeStreams — coração do processamento ───────────────────────────────
 
-export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
+export interface NormalizeStats {
+  raw:        number   // entradas recebidas
+  deduped:    number   // após remover URLs duplicadas
+  discarded:  number   // descartados (grupo ignorado ou nome < 2 chars)
+  output:     number   // canais únicos resultantes
+}
+
+export function normalizeStreams(rawChannels: RawChannel[]): { channels: Channel[], stats: NormalizeStats } {
   // Dedup por URL exata antes de tudo
   const seenUrls = new Set<string>()
   const deduped = rawChannels.filter(c => {
@@ -406,6 +423,8 @@ export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
     return true
   })
   console.log(`[M3U] ${rawChannels.length} entradas → ${deduped.length} após dedup de URL`)
+
+  let discarded = 0
 
   const map = new Map<string, Channel>()
 
@@ -418,12 +437,12 @@ export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
 
   for (const raw of deduped) {
     const gi = extractGroupInfo(raw.group)
-    if (gi.discard) continue
+    if (gi.discard) { discarded++; continue }
 
     // ── LIVE TV ───────────────────────────────────────────────────────────────
     if (gi.contentType === 'live') {
       const cleanName = cleanChannelName(raw.name)
-      if (!cleanName || cleanName.length < 2) continue
+      if (!cleanName || cleanName.length < 2) { discarded++; continue }
 
       const key = slugify(cleanName)
       const quality = detectQuality(raw.name)
@@ -450,7 +469,7 @@ export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
     // ── FILMES ────────────────────────────────────────────────────────────────
     } else if (gi.contentType === 'movie') {
       const cleanName = cleanChannelName(raw.name)
-      if (!cleanName || cleanName.length < 2) continue
+      if (!cleanName || cleanName.length < 2) { discarded++; continue }
 
       const key = slugify(cleanName)
       // Qualidade: do grupo ("Filmes | 4K" → '4K') ou detecta do nome
@@ -512,7 +531,7 @@ export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
       }
 
       const cleanName = cleanChannelName(baseName)
-      if (!cleanName || cleanName.length < 2) continue
+      if (!cleanName || cleanName.length < 2) { discarded++; continue }
 
       const dubType = getVersion(raw.name, raw.group || '')
       const streaming = getStreamingFromGroup(raw.group || '') || gi.streaming
@@ -558,7 +577,7 @@ export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
     // ── SHOWS / STANDUP ───────────────────────────────────────────────────────
     } else {
       const cleanName = cleanChannelName(raw.name)
-      if (!cleanName || cleanName.length < 2) continue
+      if (!cleanName || cleanName.length < 2) { discarded++; continue }
 
       const key = `${gi.contentType}:${slugify(cleanName)}`
 
@@ -603,9 +622,18 @@ export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
     }
   }
 
-  const result = [...map.values()]
-  console.log(`[M3U] ${deduped.length} entradas → ${result.length} canais únicos`)
-  return result
+  const channels = [...map.values()]
+  const normStats: NormalizeStats = {
+    raw:       rawChannels.length,
+    deduped:   deduped.length,
+    discarded,
+    output:    channels.length,
+  }
+  console.log(
+    `[M3U] normalize: raw=${normStats.raw} dedup=${normStats.deduped} ` +
+    `descartados=${normStats.discarded} saída=${normStats.output}`,
+  )
+  return { channels, stats: normStats }
 }
 
 // ─── CatalogIndex — índice invertido construído 1x para lookups O(1) ─────────
