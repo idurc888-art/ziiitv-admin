@@ -441,25 +441,23 @@ def build_enrich_map(series, movies):
             prefix = 'mo' if data['type'] == 'movie' else 'se'
             new_id = f"tmdb-{prefix}-{tmdb_id}"
             if new_id not in provisional.values():
+                poster   = data.get('poster')
+                backdrop = data.get('backdrop')
+                # Only send columns that exist in the canonical_titles table
                 to_insert.append({
-                    'id':             new_id,
-                    'slug':           new_id,
-                    'title':          data['title'],
-                    'original_title': data.get('original_title'),
-                    'tmdb_id':        tmdb_id,
-                    'type':           data['type'],
-                    'poster':         data.get('poster'),
-                    'backdrop':       data.get('backdrop'),
-                    'overview':       data.get('overview') or '',
-                    'rating':         data.get('rating'),
-                    'vote_count':     data.get('vote_count'),
-                    'popularity':     data.get('popularity'),
-                    'year':           data.get('year'),
-                    'genres':         data.get('genres') or [],
-                    'priority':       False,
+                    'id':       new_id,
+                    'slug':     new_id,
+                    'title':    data['title'],
+                    'type':     data['type'],
+                    'tmdb_id':  tmdb_id,
+                    'year':     data.get('year'),
+                    'rating':   data.get('rating'),
+                    'overview': data.get('overview') or '',
+                    'poster':   f"https://image.tmdb.org/t/p/w342{poster}"   if poster   else None,
+                    'backdrop': f"https://image.tmdb.org/t/p/w780{backdrop}" if backdrop else None,
                 })
-            provisional[name]       = new_id
-            tmdbid_to_id[tmdb_id]  = new_id
+            provisional[name]      = new_id
+            tmdbid_to_id[tmdb_id] = new_id
 
     for i in range(0, len(to_insert), 100):
         try:
@@ -472,7 +470,23 @@ def build_enrich_map(series, movies):
         except Exception:
             pass
 
-    enrich_map.update(provisional)
+    # Verify which IDs were actually inserted — never reference an ID that
+    # doesn't exist in canonical_titles or channels will get a FK violation.
+    if provisional:
+        candidate_ids = list(set(provisional.values()))
+        confirmed_ids = set()
+        for i in range(0, len(candidate_ids), 100):
+            chunk = candidate_ids[i:i+100]
+            try:
+                rows = sb('GET', f'canonical_titles?id=in.({",".join(chunk)})&select=id', prefer='')
+                for row in (rows or []):
+                    confirmed_ids.add(row['id'])
+            except Exception:
+                pass
+        for name, cid in provisional.items():
+            if cid in confirmed_ids:
+                enrich_map[name] = cid
+
     return enrich_map
 
 
