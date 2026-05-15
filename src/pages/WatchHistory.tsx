@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '../components/layout/Header'
 import { Table } from '../components/ui/Table'
 import { Search, MonitorPlay } from 'lucide-react'
@@ -22,26 +22,30 @@ export function WatchHistory() {
 
   useEffect(() => {
     async function load() {
-      const { data: events } = await supabaseAdmin
+      const { data: rawEvents } = await supabaseAdmin
         .from('watch_events')
         .select('id, user_id, channel_name, duration_seconds, progress_pct, watched_at')
         .order('watched_at', { ascending: false })
         .limit(200)
 
-      if (!events || events.length === 0) {
+      const events = (rawEvents || []) as Array<{
+        id: number; user_id: string; channel_name: string
+        duration_seconds: number; progress_pct: number; watched_at: string
+      }>
+
+      if (events.length === 0) {
         setLoading(false)
         return
       }
 
-      // Fetch user emails in a single batch
       const userIds = [...new Set(events.map(e => e.user_id).filter(Boolean))]
       const emailMap: Record<string, string> = {}
       if (userIds.length > 0) {
-        const { data: userRows } = await supabaseAdmin
+        const { data: rawUsers } = await supabaseAdmin
           .from('users')
           .select('id, email')
           .in('id', userIds)
-        for (const u of (userRows || [])) emailMap[u.id] = u.email
+        for (const u of (rawUsers || []) as Array<{ id: string; email: string }>) emailMap[u.id] = u.email
       }
 
       setHistory(events.map(e => ({

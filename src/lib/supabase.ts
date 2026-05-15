@@ -5,12 +5,13 @@ const supabaseAnonKey  = import.meta.env.VITE_SUPABASE_ANON_KEY    as string
 const supabaseAdminKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY as string
 
 // ── Singleton anon client (auth persistido no localStorage) ─────────────────
-let _supabase: ReturnType<typeof createClient> | null = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _supabase: any = null
 export function getSupabase() {
   if (!_supabase) {
     _supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        storageKey: 'ziiitv-admin-auth',   // chave única — evita Multiple GoTrueClient
+        storageKey: 'ziiitv-admin-auth',
         persistSession: true,
         autoRefreshToken: true,
       },
@@ -18,16 +19,17 @@ export function getSupabase() {
   }
   return _supabase
 }
-export const supabase = getSupabase()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const supabase: any = getSupabase()
 
 // ── Admin client separado, SEM persistência de sessão ───────────────────────
-// Usa storageKey diferente para nunca conflitar com o anon client
-let _supabaseAdmin: ReturnType<typeof createClient> | null = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _supabaseAdmin: any = null
 export function getSupabaseAdmin() {
   if (!_supabaseAdmin) {
     _supabaseAdmin = createClient(supabaseUrl, supabaseAdminKey || supabaseAnonKey, {
       auth: {
-        storageKey: 'ziiitv-admin-service',  // chave diferente do anon
+        storageKey: 'ziiitv-admin-service',
         persistSession: false,
         autoRefreshToken: false,
       },
@@ -35,4 +37,5 @@ export function getSupabaseAdmin() {
   }
   return _supabaseAdmin
 }
-export const supabaseAdmin = getSupabaseAdmin()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const supabaseAdmin: any = getSupabaseAdmin()

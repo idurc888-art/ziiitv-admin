@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '../components/layout/Header'
 import { Table } from '../components/ui/Table'
 import { Badge } from '../components/ui/Badge'
@@ -8,7 +8,7 @@ import { Search, Eye, Calendar, AlertCircle } from 'lucide-react'
 import { formatRelativeTime } from '../lib/utils'
 import { supabaseAdmin } from '../lib/supabase'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { User } from '../types'
+import type { User, UserRole } from '../types'
 
 interface UserWithStats extends User {
   playlist_count: number
@@ -27,9 +27,11 @@ export function Users() {
         supabaseAdmin.from('playlists').select('user_id, processed_at').eq('status', 'ready'),
       ])
 
-      // Build per-user stats from playlists
+      const usersData = (usersRes.data || []) as Array<{ id: string; email: string; role: string; created_at: string }>
+      const plData    = (playlistsRes.data || []) as Array<{ user_id: string; processed_at: string | null }>
+
       const statsMap: Record<string, { count: number; lastProcessed: string | null }> = {}
-      for (const pl of (playlistsRes.data || [])) {
+      for (const pl of plData) {
         if (!statsMap[pl.user_id]) statsMap[pl.user_id] = { count: 0, lastProcessed: null }
         statsMap[pl.user_id].count++
         if (!statsMap[pl.user_id].lastProcessed || (pl.processed_at && pl.processed_at > statsMap[pl.user_id].lastProcessed!)) {
@@ -38,8 +40,9 @@ export function Users() {
       }
 
       setUsers(
-        (usersRes.data || []).map(u => ({
+        usersData.map(u => ({
           ...u,
+          role:           u.role as UserRole,
           m3u_url:        null,
           last_processed: statsMap[u.id]?.lastProcessed ?? null,
           playlists:      [{ count: statsMap[u.id]?.count ?? 0 }],

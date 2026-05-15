@@ -26,7 +26,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         .from('users')
         .select('role')
         .eq('id', session.user.id)
-        .single()
+        .single() as { data: { role: string } | null; error: unknown }
       console.log('[Auth] Profile:', profile, 'Error:', error)
       set({
         user: session.user,
@@ -46,7 +46,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           .from('users')
           .select('role')
           .eq('id', session.user.id)
-          .single()
+          .single() as { data: { role: string } | null; error: unknown }
         console.log('[Auth] Profile after change:', profile, 'Error:', error)
         set({
           user: session.user,
