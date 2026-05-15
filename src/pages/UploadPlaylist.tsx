@@ -4,15 +4,17 @@ import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { supabase } from '../lib/supabase'
-import { normalizeStreams, parseMiniM3u } from '../lib/m3uProcessor'
+import { normalizeStreams, parseMiniM3u, buildCatalogIndex, lookupChannel } from '../lib/m3uProcessor'
+import type { CatalogIndex } from '../lib/m3uProcessor'
 import { Upload, Copy, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-type Phase = 'parsing' | 'processing' | 'saving' | 'generating' | ''
+type Phase = 'parsing' | 'processing' | 'linking' | 'saving' | 'generating' | ''
 
 const PHASE_LABEL: Record<Phase, string> = {
   parsing:    '📋 Lendo lista...',
   processing: '⚙️ Classificando canais, filmes e séries...',
+  linking:    '🔗 Vinculando ao catálogo TMDB existente...',
   saving:     '💾 Salvando no banco...',
   generating: '🎯 Gerando código...',
   '': '',
@@ -25,9 +27,27 @@ interface Stats {
   live:      number
   inserted:  number
   discarded: number
+  linked:    number
 }
 
 const MAX_FILE_MB = 500
+
+async function fetchCatalogIndex(): Promise<CatalogIndex> {
+  const PAGE = 1000
+  let all: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('canonical_titles')
+      .select('id, title, alt_titles, streaming')
+      .range(from, from + PAGE - 1)
+    if (error || !data || data.length === 0) break
+    all = all.concat(data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return buildCatalogIndex(all)
+}
 
 export function UploadPlaylist() {
   const navigate  = useNavigate()
@@ -107,10 +127,26 @@ export function UploadPlaylist() {
         setProgress(15)
         setPhase('processing')
 
-        // normalizeStreams faz toda a classificação: live, movie, series, dedup, grouping
         const { channels, stats: normStats } = normalizeStreams(rawChannels)
         setProgress(30)
-        console.log('[Upload] normStats', normStats)
+
+        if (cancelledRef.current) { await handleCancel(); return }
+
+        // ── Vincula ao catálogo TMDB já existente no banco ────────────────────
+        // canonical_titles nunca são deletadas — acumulam a cada enriquecimento.
+        // Buscar aqui garante que listas novas herdem todo TMDB já processado.
+        setPhase('linking')
+        setProgress(35)
+
+        const catalogIndex = await fetchCatalogIndex()
+        setProgress(40)
+
+        let linked = 0
+        const enrichedChannels = channels.map(ch => {
+          const canonicalId = lookupChannel(ch.name, ch.streaming, catalogIndex)
+          if (canonicalId) linked++
+          return { ...ch, canonicalId }
+        })
 
         if (cancelledRef.current) { await handleCancel(); return }
 
@@ -119,10 +155,10 @@ export function UploadPlaylist() {
         const BATCH = 1000
         let inserted = 0
 
-        for (let i = 0; i < channels.length; i += BATCH) {
+        for (let i = 0; i < enrichedChannels.length; i += BATCH) {
           if (cancelledRef.current) { await handleCancel(); return }
 
-          const batch = channels.slice(i, i + BATCH).map(ch => ({
+          const batch = enrichedChannels.slice(i, i + BATCH).map(ch => ({
             playlist_id:  playlist.id,
             user_id:      user.id,
             name:         ch.name,
@@ -131,16 +167,16 @@ export function UploadPlaylist() {
             streaming:    ch.streaming,
             streams:      ch.streams,
             content_type: (ch.contentType === 'show' || ch.contentType === 'standup') ? 'series' : ch.contentType,
-            canonical_id: null,
+            canonical_id: ch.canonicalId ?? null,
             seasons:      ch.seasons ?? null,
-            enriched:     false,
+            enriched:     !!ch.canonicalId,
             active:       true,
           }))
 
           const { error } = await (supabase as any).from('channels').insert(batch) as { error: { message: string } | null }
           if (error) throw new Error(`Erro ao salvar canais: ${error.message}`)
           inserted += batch.length
-          setProgress(30 + Math.round((inserted / channels.length) * 55))
+          setProgress(40 + Math.round((inserted / enrichedChannels.length) * 45))
         }
 
         // ── Marca playlist como pronta ────────────────────────────────────────
@@ -153,7 +189,7 @@ export function UploadPlaylist() {
         const movies = channels.filter(c => c.contentType === 'movie').length
         const live   = channels.filter(c => c.contentType === 'live').length
 
-        setStats({ raw: rawChannels.length, series, movies, live, inserted, discarded: normStats.discarded })
+        setStats({ raw: rawChannels.length, series, movies, live, inserted, discarded: normStats.discarded, linked })
         setProgress(90)
 
       } else {
@@ -192,7 +228,6 @@ export function UploadPlaylist() {
       setProgress(100)
 
     } catch (err: any) {
-      console.error('[Upload]', err)
       const msg: string = err.message || 'Erro ao processar playlist'
       const friendly = msg.includes('403')
         ? 'Provedor IPTV bloqueou o acesso. Baixe o arquivo .m3u e use o modo Arquivo.'
@@ -226,7 +261,7 @@ export function UploadPlaylist() {
     <div className="space-y-6">
       <Header
         title="Upload de Playlist"
-        description="Classifica filmes, séries e canais no browser e gera código para a TV"
+        description="Classifica, vincula ao catálogo TMDB e gera código para a TV"
       />
 
       <Card className="max-w-2xl">
@@ -321,11 +356,12 @@ export function UploadPlaylist() {
           {stats && !code && (
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Entradas brutas',  value: stats.raw.toLocaleString('pt-BR'),       color: 'text-white' },
-                { label: 'Séries agrupadas', value: stats.series.toLocaleString('pt-BR'),    color: 'text-white' },
-                { label: 'Filmes',           value: stats.movies.toLocaleString('pt-BR'),    color: 'text-white' },
-                { label: 'TV ao vivo',       value: stats.live.toLocaleString('pt-BR'),      color: 'text-white' },
-                { label: 'Descartados',      value: stats.discarded.toLocaleString('pt-BR'), color: stats.discarded > 0 ? 'text-yellow-400' : 'text-white' },
+                { label: 'Entradas brutas',    value: stats.raw.toLocaleString('pt-BR'),       color: 'text-white' },
+                { label: 'Séries agrupadas',   value: stats.series.toLocaleString('pt-BR'),    color: 'text-white' },
+                { label: 'Filmes',             value: stats.movies.toLocaleString('pt-BR'),    color: 'text-white' },
+                { label: 'TV ao vivo',         value: stats.live.toLocaleString('pt-BR'),      color: 'text-white' },
+                { label: 'TMDB vinculados',    value: stats.linked.toLocaleString('pt-BR'),    color: stats.linked > 0 ? 'text-yellow-400' : 'text-white' },
+                { label: 'Descartados',        value: stats.discarded.toLocaleString('pt-BR'), color: stats.discarded > 0 ? 'text-yellow-400' : 'text-white' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-gray-800 rounded-lg p-3">
                   <p className="text-xs text-gray-400">{label}</p>
@@ -343,6 +379,7 @@ export function UploadPlaylist() {
                 {stats && (
                   <p className="text-sm text-gray-400">
                     {stats.series.toLocaleString('pt-BR')} séries · {stats.movies.toLocaleString('pt-BR')} filmes · {stats.live.toLocaleString('pt-BR')} TV ao vivo
+                    {stats.linked > 0 && ` · ${stats.linked.toLocaleString('pt-BR')} já com TMDB ✨`}
                   </p>
                 )}
               </div>
