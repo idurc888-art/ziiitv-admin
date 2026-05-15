@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { AutoEnrichBanner } from '../components/AutoEnrichBanner'
 import { supabase } from '../lib/supabase'
 import { globalChannelCache, globalPlaylistCache } from '../lib/channelCache'
-import { ArrowLeft, Tv, Film, Star, BarChart2, Shield, Search, ChevronRight, Activity, Percent, ArrowDownToLine, Zap, Link2 } from 'lucide-react'
+import { ArrowLeft, Tv, Film, Star, BarChart2, Shield, Search, ChevronRight, Activity, Percent, ArrowDownToLine, Zap, Link2, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 
 interface Channel {
   id: string
@@ -48,6 +48,9 @@ export function PlaylistChannels() {
   const [activeView, setActiveView] = useState('dashboard')
   const [linking, setLinking] = useState(false)
   const [linkResult, setLinkResult] = useState<{ linked: number; total: number; catalog_size: number } | null>(null)
+  type LogLine = { step: string; message: string }
+  const [linkLogs, setLinkLogs] = useState<LogLine[]>([])
+  const logEndRef = useRef<HTMLDivElement>(null)
 
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 54 // Multiple of 1, 2 and 3 columns
@@ -164,22 +167,65 @@ export function PlaylistChannels() {
     }
   }, [channels])
 
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [linkLogs])
+
   const handleLink = async () => {
     if (!id) return
     setLinking(true)
     setLinkResult(null)
+    setLinkLogs([])
     try {
-      const { data, error } = await supabase.functions.invoke('link-playlist', {
-        body: { playlist_id: id },
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) throw new Error('Sessão expirada — faça login novamente')
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+      const anonKey    = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/link-playlist`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'apikey': anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ playlist_id: id }),
       })
-      if (error) throw error
-      setLinkResult(data)
-      // Limpa cache para forçar reload com canonical_ids novos
-      delete (globalChannelCache as any)[id]
-      delete (globalPlaylistCache as any)[id]
-      load(id)
+
+      if (!response.body) throw new Error('Sem resposta do servidor')
+      const reader  = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let finalResult: { linked: number; total: number; catalog_size: number } | null = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()!
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const event = JSON.parse(line)
+            setLinkLogs(prev => [...prev, { step: event.step, message: event.message }])
+            if (event.step === 'done') {
+              finalResult = { linked: event.linked, total: event.total, catalog_size: event.catalog_size }
+            }
+          } catch { /* malformed line */ }
+        }
+      }
+
+      if (finalResult) {
+        setLinkResult(finalResult)
+        delete (globalChannelCache as any)[id]
+        delete (globalPlaylistCache as any)[id]
+        load(id)
+      }
     } catch (err: any) {
-      alert('Erro ao vincular: ' + err.message)
+      setLinkLogs(prev => [...prev, { step: 'error', message: 'Erro: ' + err.message }])
     } finally {
       setLinking(false)
     }
@@ -251,6 +297,44 @@ export function PlaylistChannels() {
           <Zap className="w-4 h-4" /> Enriquecer com TMDB
         </button>
       </div>
+
+      {/* Painel de logs em tempo real */}
+      {(linking || linkLogs.length > 0) && (
+        <div className="rounded-xl border border-border bg-[#0d0d0d] overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-surface">
+            {linking
+              ? <Loader2 className="w-4 h-4 text-aqua animate-spin" />
+              : linkLogs.at(-1)?.step === 'error'
+                ? <XCircle className="w-4 h-4 text-red-400" />
+                : <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            }
+            <span className="text-xs font-mono font-semibold text-text-secondary uppercase tracking-widest">
+              Log de vinculação
+            </span>
+          </div>
+          <div className="h-56 overflow-y-auto p-4 space-y-1 font-mono text-xs">
+            {linkLogs.map((log, i) => {
+              const isLast = i === linkLogs.length - 1
+              const color =
+                log.step === 'error'        ? 'text-red-400' :
+                log.step === 'done'         ? 'text-emerald-400 font-bold' :
+                log.step === 'catalog_ready'? 'text-aqua' :
+                log.step === 'channels_ready' || log.step === 'matching' ? 'text-[#ff8c42]' :
+                log.step === 'saving'       ? 'text-[#ff2d92]' :
+                                              'text-text-muted'
+              return (
+                <div key={i} className={`flex items-start gap-2 ${color}`}>
+                  <span className="opacity-40 select-none shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                  <span>{log.message}</span>
+                  {isLast && linking && <Loader2 className="w-3 h-3 animate-spin ml-1 shrink-0 mt-0.5" />}
+                </div>
+              )
+            })}
+            <div ref={logEndRef} />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700">
           <div className="flex items-center gap-3 mb-4">
