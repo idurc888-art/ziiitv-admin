@@ -10,13 +10,13 @@ interface HeaderProps {
 
 export function Header({ title, description, action, className }: HeaderProps) {
   return (
-    <header className={classNames('mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4', className)}>
+    <header className={classNames('mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4', className)}>
       <div>
-        <h1 className="text-2xl font-display font-bold text-text-primary tracking-tight">
+        <h1 className="text-[34px] font-display font-bold text-text-primary leading-[1.1] tracking-tightest">
           {title}
         </h1>
         {description && (
-          <p className="text-sm text-text-secondary mt-1">{description}</p>
+          <p className="text-[15px] text-text-secondary mt-2 max-w-[540px]">{description}</p>
         )}
       </div>
       {action && (

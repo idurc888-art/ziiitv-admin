@@ -5,14 +5,14 @@ import { classNames } from '../../lib/utils'
 type BadgeVariant = 'active' | 'inactive' | 'processing' | 'error' | 'pending' | 'ready' | 'admin' | 'user'
 
 const styles: Record<BadgeVariant, string> = {
-  active:     'bg-success/15 text-success border-success/30',
-  ready:      'bg-success/15 text-success border-success/30',
-  inactive:   'bg-text-muted/15 text-text-muted border-text-muted/30',
-  pending:    'bg-text-secondary/15 text-text-secondary border-text-secondary/30',
-  processing: 'bg-warning/15 text-warning border-warning/30',
-  error:      'bg-danger/15 text-danger border-danger/30',
-  admin:      'bg-accent/15 text-accent border-accent/30',
-  user:       'bg-text-secondary/15 text-text-secondary border-text-secondary/30',
+  active:     'bg-aqua-muted   text-aqua',
+  ready:      'bg-aqua-muted   text-aqua',
+  inactive:   'bg-white/[0.06] text-text-secondary',
+  pending:    'bg-white/[0.06] text-text-secondary',
+  processing: 'bg-neon-muted   text-neon',
+  error:      'bg-danger/[0.12] text-danger',
+  admin:      'bg-accent-muted text-accent',
+  user:       'bg-white/[0.06] text-text-secondary',
 }
 
 const labels: Record<BadgeVariant, string> = {
@@ -31,15 +31,15 @@ export function Badge({ variant, label, dot = false, className }: BadgeProps) {
   const v = (variant as BadgeVariant) in styles ? (variant as BadgeVariant) : 'inactive'
   return (
     <span className={classNames(
-      'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border',
+      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
       styles[v],
       className
     )}>
-      {dot && variant === 'processing' && (
-        <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-      )}
-      {dot && variant !== 'processing' && (
-        <span className={classNames('w-1.5 h-1.5 rounded-full', v === 'active' || v === 'ready' ? 'bg-success' : v === 'error' ? 'bg-danger' : 'bg-text-muted')} />
+      {dot && (
+        <span className={classNames(
+          'w-1.5 h-1.5 rounded-full bg-current',
+          v === 'processing' && 'animate-[pulse-dot_1.5s_ease-in-out_infinite]'
+        )} />
       )}
       {label ?? labels[v]}
     </span>

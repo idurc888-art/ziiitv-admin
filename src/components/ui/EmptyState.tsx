@@ -12,20 +12,20 @@ interface EmptyStateProps {
   className?: string
 }
 
-export function EmptyState({ 
-  icon: Icon, title, description, actionLabel, onAction, className 
+export function EmptyState({
+  icon: Icon, title, description, actionLabel, onAction, className
 }: EmptyStateProps) {
   return (
     <div className={classNames(
-      'flex flex-col items-center justify-center p-12 text-center rounded-xl border border-dashed border-border bg-base/50',
+      'flex flex-col items-center justify-center px-8 py-16 text-center rounded-card bg-surface',
       className
     )}>
-      <div className="w-12 h-12 rounded-full bg-elevated flex items-center justify-center mb-4 text-text-muted">
-        <Icon className="w-6 h-6" />
+      <div className="w-14 h-14 rounded-[14px] bg-aqua-muted text-aqua flex items-center justify-center mb-5">
+        <Icon className="w-7 h-7" />
       </div>
-      <h3 className="text-lg font-medium text-text-primary mb-1">{title}</h3>
+      <h3 className="text-xl font-display font-semibold text-text-primary mb-2 tracking-[-0.02em]">{title}</h3>
       {description && (
-        <p className="text-sm text-text-secondary max-w-sm mb-6">{description}</p>
+        <p className="text-sm text-text-secondary max-w-sm mb-7 leading-relaxed">{description}</p>
       )}
       {actionLabel && onAction && (
         <Button onClick={onAction} variant="ghost" size="sm">

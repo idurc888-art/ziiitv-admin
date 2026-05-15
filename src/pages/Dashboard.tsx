@@ -121,24 +121,28 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Stat
+          tone="pink"
           label="Total de Usuários"
           value={stats.users}
           icon={<Users className="w-5 h-5" />}
           loading={loading}
         />
         <Stat
+          tone="aqua"
           label="Playlists Processadas (Hoje)"
           value={stats.playlistsToday}
           icon={<List className="w-5 h-5" />}
           loading={loading}
         />
         <Stat
+          tone="neon"
           label="Canais Ativos"
           value={stats.channels.toLocaleString('pt-BR')}
           icon={<Radio className="w-5 h-5" />}
           loading={loading}
         />
         <Stat
+          tone="pink"
           label="Horas Assistidas (Hoje)"
           value={stats.watchHoursToday}
           icon={<Clock className="w-5 h-5" />}

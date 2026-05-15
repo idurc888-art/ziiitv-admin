@@ -243,7 +243,7 @@ export function Playlists() {
                   {/* Ações */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {pl.status === 'ready' && (
-                      <Button variant="secondary" size="sm" onClick={() => navigate(`/playlists/${pl.id}`)}>
+                      <Button variant="ghost" size="sm" onClick={() => navigate(`/playlists/${pl.id}`)}>
                         <Eye className="w-3.5 h-3.5 mr-1" /> Ver canais
                       </Button>
                     )}

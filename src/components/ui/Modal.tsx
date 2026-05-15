@@ -23,32 +23,27 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-base/80 backdrop-blur-sm transition-opacity"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div
+        className="absolute inset-0 bg-base/70 backdrop-blur-md transition-opacity"
         onClick={onClose}
       />
-      
-      {/* Container */}
+
       <div className={classNames(
-        'relative bg-surface border border-border rounded-xl shadow-2xl w-full max-w-lg',
-        'transform transition-all',
+        'relative bg-surface rounded-[20px] shadow-2xl w-full max-w-[460px] overflow-hidden',
         className
       )}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
-          <button 
+        <div className="flex items-center justify-between pt-5 pb-3 px-6">
+          <h3 className="text-xl font-display font-bold text-text-primary tracking-[-0.025em]">{title}</h3>
+          <button
             onClick={onClose}
-            className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-md hover:bg-elevated"
+            className="text-text-muted hover:text-text-primary transition-colors p-1.5 rounded-lg hover:bg-elevated"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
-        
-        {/* Content */}
-        <div className="p-6">
+
+        <div className="px-6 pb-6">
           {children}
         </div>
       </div>

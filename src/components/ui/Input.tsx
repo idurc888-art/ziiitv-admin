@@ -10,15 +10,15 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 export function Input({ label, error, icon, className, id, ...props }: InputProps) {
   const inputId = id ?? label?.toLowerCase().replace(/\s/g, '-')
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       {label && (
-        <label htmlFor={inputId} className="text-sm font-medium text-text-secondary">
+        <label htmlFor={inputId} className="text-[13px] font-medium text-text-secondary tracking-tight">
           {label}
         </label>
       )}
       <div className="relative">
         {icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted">
             {icon}
           </div>
         )}
@@ -26,9 +26,9 @@ export function Input({ label, error, icon, className, id, ...props }: InputProp
           id={inputId}
           {...props}
           className={classNames(
-            'w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary',
-            'placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors',
-            icon && 'pl-9',
+            'w-full bg-elevated border border-transparent rounded-xl px-3.5 py-3 text-sm text-text-primary',
+            'placeholder:text-text-muted focus:outline-none focus:border-accent focus:bg-surface transition-colors',
+            icon && 'pl-11',
             error && 'border-danger focus:border-danger',
             className
           )}
