@@ -23,24 +23,21 @@ import { Homes } from './pages/Homes'
 import { HomeEditor } from './pages/HomeEditor'
 
 export function App() {
-  const { initialize, initialized } = useAuthStore((s) => ({
-    initialize: s.initialize,
-    initialized: s.initialized
-  }))
+  const initialize = useAuthStore((s) => s.initialize)
+  const isLoading = useAuthStore((s) => s.isLoading)
 
   useEffect(() => {
     initialize()
   }, [initialize])
 
-  // Garante que o app não renderiza rotas antes do auth estar pronto
-  // evitando flashes e redirects incorretos sem refresh
-  if (!initialized) {
+  // Aguarda auth inicializar antes de renderizar rotas
+  // Evita flashes, redirects errados e React error #185
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-          <p className="text-text-muted text-sm">Iniciando...</p>
-        </div>
+      <div style={{ minHeight: '100vh', background: '#0f0f14', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ width: 32, height: 32, border: '2px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <p style={{ color: '#6b7280', fontSize: 14 }}>Iniciando...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
   }
