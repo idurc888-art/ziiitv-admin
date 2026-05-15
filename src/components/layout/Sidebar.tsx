@@ -15,34 +15,43 @@ import {
   LayoutTemplate,
 } from 'lucide-react'
 
-const NAV_GROUPS = [
+const ADMIN_GROUPS = [
   {
     label: 'Visão geral',
     items: [
-      { to: '/',        icon: LayoutDashboard, label: 'Dashboard', end: true },
-      { to: '/preview', icon: Eye,             label: 'Preview Canais' },
+      { to: '/admin',        icon: LayoutDashboard, label: 'Dashboard', end: true },
+      { to: '/admin/preview', icon: Eye,             label: 'Preview Canais' },
     ],
   },
   {
     label: 'Conteúdo',
     items: [
-      { to: '/upload',    icon: Upload,         label: 'Upload Playlist' },
-      { to: '/playlists', icon: List,           label: 'Playlists' },
-      { to: '/channels',  icon: Radio,          label: 'Canais' },
-      { to: '/homes',     icon: LayoutTemplate, label: 'Home Builder' },
+      { to: '/admin/upload',    icon: Upload,         label: 'Upload Playlist' },
+      { to: '/admin/playlists', icon: List,           label: 'Playlists' },
+      { to: '/admin/channels',  icon: Radio,          label: 'Canais' },
+      { to: '/admin/homes',     icon: LayoutTemplate, label: 'Home Builder' },
     ],
   },
   {
     label: 'Gestão',
     items: [
-      { to: '/users',         icon: Users,   label: 'Usuários' },
-      { to: '/watch-history', icon: History, label: 'Watch History' },
+      { to: '/admin/users',         icon: Users,   label: 'Usuários' },
+      { to: '/admin/watch-history', icon: History, label: 'Watch History' },
+    ],
+  },
+]
+
+const CLIENT_GROUPS = [
+  {
+    label: 'Painel do Cliente',
+    items: [
+      { to: '/client', icon: LayoutDashboard, label: 'Minha Conta', end: true },
     ],
   },
 ]
 
 export function Sidebar() {
-  const { user, signOut } = useAuthStore()
+  const { user, isAdmin, signOut } = useAuthStore()
   const initials = (user?.email || 'A').slice(0, 1).toUpperCase()
 
   return (
@@ -55,14 +64,14 @@ export function Sidebar() {
         <div className="font-display font-bold text-[17px] tracking-[-0.03em]">
           ziiiTV
           <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-muted align-[2px]">
-            admin
+            {isAdmin ? 'admin' : 'cliente'}
           </span>
         </div>
       </div>
 
       {/* Nav */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-px">
-        {NAV_GROUPS.map((grp) => (
+        {(isAdmin ? ADMIN_GROUPS : CLIENT_GROUPS).map((grp) => (
           <React.Fragment key={grp.label}>
             <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted px-3 pt-4 pb-2">
               {grp.label}
@@ -94,7 +103,7 @@ export function Sidebar() {
         </div>
         <div className="flex-1 overflow-hidden">
           <p className="text-[13px] font-medium text-text-primary truncate">{user?.email}</p>
-          <p className="text-[11px] text-text-muted mt-0.5">Administrador</p>
+          <p className="text-[11px] text-text-muted mt-0.5">{isAdmin ? 'Administrador' : 'Cliente'}</p>
         </div>
         <button
           onClick={() => signOut()}

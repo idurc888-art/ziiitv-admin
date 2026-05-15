@@ -19,9 +19,11 @@ export function ProtectedRoute() {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (!isAdmin) {
-    return <Navigate to="/unauthorized" replace />
+  // Se estiver na raiz, redireciona baseado no tipo de usuário
+  if (location.pathname === '/') {
+    return <Navigate to={isAdmin ? "/admin" : "/client"} replace />
   }
 
+  // Permite acesso às sub-rotas. As rotas restritas de admin estarão envolvidas com <AdminRoute>
   return <Outlet />
 }

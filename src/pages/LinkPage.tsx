@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-type Step = 'loading' | 'login' | 'email_sent' | 'form' | 'success' | 'expired' | 'error'
+type Step = 'loading' | 'type_token' | 'login' | 'email_sent' | 'form' | 'success' | 'expired' | 'error'
 type Mode = 'm3u' | 'xtream'
 
 interface PairTokenRow {
@@ -18,7 +18,7 @@ export function LinkPage() {
   const [params] = useSearchParams()
   const token = params.get('token') ?? ''
 
-  const [step, setStep]         = useState<Step>('loading')
+  const [step, setStep]         = useState<Step>(token ? 'loading' : 'type_token')
   const [mode, setMode]         = useState<Mode>('m3u')
   const [deviceId, setDeviceId] = useState('')
   const [userId, setUserId]     = useState('')
@@ -27,6 +27,8 @@ export function LinkPage() {
   const [user, setUser]         = useState('')
   const [pass, setPass]         = useState('')
   const [email, setEmail]       = useState('')
+  const [inputToken, setInputToken] = useState('')
+  const [activeToken, setActiveToken] = useState(token)
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -35,16 +37,17 @@ export function LinkPage() {
 
   // Verifica token + sessão de auth ao carregar
   useEffect(() => {
-    if (!token) { setStep('error'); setErrorMsg('Token não encontrado na URL.'); return }
+    if (!activeToken) return
 
     async function init() {
+      setStep('loading')
       // Verifica se já tem sessão ativa (ex: retorno do OAuth Google)
       const { data: { session } } = await supabase.auth.getSession()
 
       const { data, error } = await supabase
         .from('pair_tokens')
         .select('device_id, status, expires_at')
-        .eq('token', token)
+        .eq('token', activeToken)
         .single()
 
       if (error || !data) { setStep('error'); setErrorMsg('Código inválido ou expirado.'); return }
@@ -64,7 +67,7 @@ export function LinkPage() {
     }
 
     init()
-  }, [token])
+  }, [activeToken])
 
   // Detecta login via OAuth (retorno do Google redirect)
   useEffect(() => {
@@ -137,7 +140,7 @@ export function LinkPage() {
         ...(mode === 'xtream' ? { xtream_host: host.trim(), xtream_user: user.trim(), xtream_pass: pass.trim() } : {}),
         linked_at: new Date().toISOString(),
       })
-      .eq('token', token)
+      .eq('token', activeToken)
 
     if (tokenError) {
       setErrorMsg('Erro ao vincular. Tente novamente.')
@@ -179,6 +182,13 @@ export function LinkPage() {
     outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'monospace',
   }
 
+  const inputTokenStyle: CSSProperties = {
+    background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: 12, padding: '14px 16px', fontSize: 24, color: '#ff006e',
+    outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'monospace',
+    textAlign: 'center', letterSpacing: '4px', textTransform: 'uppercase'
+  }
+
   const btnPrimary: CSSProperties = {
     background: PINK, border: 'none', borderRadius: 12, padding: '16px',
     fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer',
@@ -207,6 +217,29 @@ export function LinkPage() {
 
         {step === 'loading' && (
           <div style={{ textAlign: 'center', opacity: 0.5 }}>Verificando código...</div>
+        )}
+
+        {step === 'type_token' && (
+          <form onSubmit={(e) => { e.preventDefault(); setActiveToken(inputToken.trim().toUpperCase()) }} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ textAlign: 'center', marginBottom: 4 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Vincular sua TV</div>
+              <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                Abra o aplicativo ZiiiTV na sua televisão e digite o código de 6 letras que aparece na tela.
+              </div>
+            </div>
+            <input
+              type="text"
+              value={inputToken}
+              onChange={e => setInputToken(e.target.value)}
+              placeholder="Ex: ABCDEF"
+              maxLength={6}
+              required
+              style={inputTokenStyle}
+            />
+            <button type="submit" style={btnPrimary}>
+              Continuar
+            </button>
+          </form>
         )}
 
         {step === 'login' && (
@@ -355,7 +388,7 @@ export function LinkPage() {
             </button>
 
             <div style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
-              Código: {token}
+              Código: {activeToken}
             </div>
           </form>
         )}

@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/authStore'
 
 import { Layout } from './components/layout/Layout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
+import { AdminRoute } from './components/layout/AdminRoute'
 import { Login } from './pages/Login'
 import { Unauthorized } from './pages/Unauthorized'
 
@@ -21,6 +22,8 @@ import { EnrichQueue } from './pages/EnrichQueue'
 import { LinkPage } from './pages/LinkPage'
 import { Homes } from './pages/Homes'
 import { HomeEditor } from './pages/HomeEditor'
+
+import { ClientDashboard } from './pages/client/ClientDashboard'
 
 export function App() {
   const initialize = useAuthStore((s) => s.initialize)
@@ -62,18 +65,26 @@ export function App() {
           
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/homes" element={<Homes />} />
-              <Route path="/homes/:id" element={<HomeEditor />} />
-              <Route path="/upload" element={<UploadPlaylist />} />
-              <Route path="/preview" element={<ChannelsPreview />} />
-              <Route path="/users" element={<Users />} />
-              <Route path="/playlists" element={<Playlists />} />
-              <Route path="/playlists/:id" element={<PlaylistChannels />} />
-              <Route path="/channels" element={<Channels />} />
-              <Route path="/channels/:id" element={<ChannelDetail />} />
-              <Route path="/enrich/:id" element={<EnrichQueue />} />
-              <Route path="/watch-history" element={<WatchHistory />} />
+              
+              {/* Rotas de Admin */}
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<Dashboard />} />
+                <Route path="/admin/homes" element={<Homes />} />
+                <Route path="/admin/homes/:id" element={<HomeEditor />} />
+                <Route path="/admin/upload" element={<UploadPlaylist />} />
+                <Route path="/admin/preview" element={<ChannelsPreview />} />
+                <Route path="/admin/users" element={<Users />} />
+                <Route path="/admin/playlists" element={<Playlists />} />
+                <Route path="/admin/playlists/:id" element={<PlaylistChannels />} />
+                <Route path="/admin/channels" element={<Channels />} />
+                <Route path="/admin/channels/:id" element={<ChannelDetail />} />
+                <Route path="/admin/enrich/:id" element={<EnrichQueue />} />
+                <Route path="/admin/watch-history" element={<WatchHistory />} />
+              </Route>
+
+              {/* Rotas de Cliente */}
+              <Route path="/client" element={<ClientDashboard />} />
+              
             </Route>
           </Route>
         </Routes>
