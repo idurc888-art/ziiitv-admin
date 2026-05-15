@@ -32,21 +32,33 @@ interface Stats {
 
 const MAX_FILE_MB = 500
 
-async function fetchCatalogIndex(): Promise<CatalogIndex> {
+async function fetchCatalogIndex(onProgress?: (count: number) => void): Promise<CatalogIndex> {
   const PAGE = 1000
   let all: any[] = []
   let from = 0
-  while (true) {
-    const { data, error } = await supabase
-      .from('canonical_titles')
-      .select('id, title, alt_titles, streaming')
-      .range(from, from + PAGE - 1)
-    if (error || !data || data.length === 0) break
-    all = all.concat(data)
-    if (data.length < PAGE) break
-    from += PAGE
+  let timedOut = false
+
+  const fetchLoop = async (): Promise<CatalogIndex> => {
+    while (!timedOut) {
+      const { data, error } = await supabase
+        .from('canonical_titles')
+        .select('id, title, alt_titles, streaming')
+        .range(from, from + PAGE - 1)
+      if (error || !data || data.length === 0) break
+      all = all.concat(data)
+      onProgress?.(all.length)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    return buildCatalogIndex(all)
   }
-  return buildCatalogIndex(all)
+
+  // 20s timeout — returns whatever was collected so far
+  const timeoutRace = new Promise<CatalogIndex>(resolve =>
+    setTimeout(() => { timedOut = true; resolve(buildCatalogIndex(all)) }, 20000)
+  )
+
+  return Promise.race([fetchLoop(), timeoutRace])
 }
 
 export function UploadPlaylist() {
@@ -57,11 +69,17 @@ export function UploadPlaylist() {
   const [loading, setLoading]   = useState(false)
   const [phase, setPhase]       = useState<Phase>('')
   const [progress, setProgress] = useState(0)
+  const [logs, setLogs]         = useState<string[]>([])
   const [code, setCode]         = useState<string | null>(null)
   const [copied, setCopied]     = useState(false)
   const [stats, setStats]       = useState<Stats | null>(null)
   const cancelledRef            = useRef(false)
   const playlistIdRef           = useRef<string | null>(null)
+
+  const addLog = (msg: string) => {
+    const time = new Date().toLocaleTimeString('pt-BR', { hour12: false })
+    setLogs(prev => [...prev, `[${time}] ${msg}`])
+  }
 
   const fileSizeMB = file ? file.size / 1024 / 1024 : 0
 
@@ -78,6 +96,7 @@ export function UploadPlaylist() {
     setLoading(false)
     setPhase('')
     setProgress(0)
+    addLog('Upload cancelado pelo usuário.')
     toast('Upload cancelado')
   }
 
@@ -91,14 +110,17 @@ export function UploadPlaylist() {
     setLoading(true)
     setStats(null)
     setProgress(0)
+    setLogs([])
     cancelledRef.current  = false
     playlistIdRef.current = null
 
     try {
+      addLog('Iniciando processamento da playlist...')
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Não autenticado')
 
       // ── 1. Cria registro da playlist ─────────────────────────────────────────
+      addLog('Criando registro da playlist no banco de dados...')
       const urlKey = mode === 'url' ? url.trim() : `file:${file!.name}`
       const { data: playlist, error: plErr } = await supabase
         .from('playlists')
@@ -111,6 +133,7 @@ export function UploadPlaylist() {
 
       if (mode === 'file' && file) {
         // ── Modo arquivo: tudo no browser com normalizeStreams ─────────────────
+        addLog(`Lendo arquivo local: ${file.name} (${fileSizeMB.toFixed(1)} MB)...`)
         setPhase('parsing')
         setProgress(5)
 
@@ -123,34 +146,55 @@ export function UploadPlaylist() {
 
         if (cancelledRef.current) { await handleCancel(); return }
 
+        addLog('Arquivo lido com sucesso. Analisando formato M3U...')
         const rawChannels = parseMiniM3u(text)
         setProgress(15)
         setPhase('processing')
 
+        addLog(`Encontradas ${rawChannels.length} entradas brutas. Classificando em filmes, séries e canais...`)
         const { channels, stats: normStats } = normalizeStreams(rawChannels)
         setProgress(30)
+        addLog(`Classificação concluída: ${channels.length} canais únicos. (${normStats.discarded} itens descartados)`)
 
         if (cancelledRef.current) { await handleCancel(); return }
 
         // ── Vincula ao catálogo TMDB já existente no banco ────────────────────
         // canonical_titles nunca são deletadas — acumulam a cada enriquecimento.
         // Buscar aqui garante que listas novas herdem todo TMDB já processado.
+        addLog('Buscando catálogo TMDB existente (isso pode levar alguns segundos)...')
         setPhase('linking')
         setProgress(35)
 
-        const catalogIndex = await fetchCatalogIndex()
-        setProgress(40)
-
-        let linked = 0
-        const enrichedChannels = channels.map(ch => {
-          const canonicalId = lookupChannel(ch.name, ch.streaming, catalogIndex)
-          if (canonicalId) linked++
-          return { ...ch, canonicalId }
+        const catalogIndex = await fetchCatalogIndex((count) => {
+          addLog(`📚 Catálogo: ${count.toLocaleString('pt-BR')} títulos carregados...`)
         })
+        setProgress(38)
+        addLog(`Catálogo pronto: ${catalogIndex.raw.length} títulos. Iniciando vinculação...`)
+
+        // Async chunked linking — keeps UI responsive and shows live progress
+        const LINK_CHUNK = 2000
+        let linked = 0
+        const enrichedChannels: any[] = []
+
+        for (let i = 0; i < channels.length; i += LINK_CHUNK) {
+          if (cancelledRef.current) { await handleCancel(); return }
+          const chunk = channels.slice(i, i + LINK_CHUNK)
+          for (const ch of chunk) {
+            const canonicalId = lookupChannel(ch.name, ch.streaming, catalogIndex)
+            if (canonicalId) linked++
+            enrichedChannels.push({ ...ch, canonicalId })
+          }
+          const pct = Math.round((enrichedChannels.length / channels.length) * 100)
+          addLog(`🔗 Vinculando... ${enrichedChannels.length.toLocaleString('pt-BR')}/${channels.length.toLocaleString('pt-BR')} canais — ${linked} com TMDB (${pct}%)`)
+          setProgress(38 + Math.round((enrichedChannels.length / channels.length) * 4))
+          await new Promise(r => setTimeout(r, 0))
+        }
+        addLog(`✅ Vinculação concluída. ${linked} canais com TMDB associado.`)
 
         if (cancelledRef.current) { await handleCancel(); return }
 
         // ── Salva em batches de 1000 ──────────────────────────────────────────
+        addLog('Iniciando salvamento no banco de dados em lotes de 1000...')
         setPhase('saving')
         const BATCH = 1000
         let inserted = 0
@@ -168,16 +212,19 @@ export function UploadPlaylist() {
             streams:      ch.streams,
             content_type: (ch.contentType === 'show' || ch.contentType === 'standup') ? 'series' : ch.contentType,
             canonical_id: ch.canonicalId ?? null,
-            seasons:      ch.seasons ?? null,
-            enriched:     !!ch.canonicalId,
             active:       true,
           }))
 
+          const batchNum = Math.floor(i / BATCH) + 1
+          const totalBatches = Math.ceil(enrichedChannels.length / BATCH)
+          addLog(`💾 Lote ${batchNum}/${totalBatches} — salvando ${batch.length} canais...`)
           const { error } = await (supabase as any).from('channels').insert(batch) as { error: { message: string } | null }
           if (error) throw new Error(`Erro ao salvar canais: ${error.message}`)
           inserted += batch.length
           setProgress(40 + Math.round((inserted / enrichedChannels.length) * 45))
+          addLog(`✅ Lote ${batchNum}/${totalBatches} salvo. Total: ${inserted.toLocaleString('pt-BR')}/${enrichedChannels.length.toLocaleString('pt-BR')} canais`)
         }
+        addLog(`Salvamento concluído com sucesso. Todos os ${enrichedChannels.length} canais inseridos.`)
 
         // ── Marca playlist como pronta ────────────────────────────────────────
         await (supabase as any)
@@ -194,6 +241,7 @@ export function UploadPlaylist() {
 
       } else {
         // ── Modo URL: chama Python ────────────────────────────────────────────
+        addLog('Enviando solicitação de processamento de URL para a nuvem...')
         setPhase('processing')
         setProgress(20)
 
@@ -218,16 +266,20 @@ export function UploadPlaylist() {
 
         setStats(result)
         setProgress(90)
+        addLog('Processamento em nuvem finalizado.')
       }
 
       // ── Gera código de pareamento ─────────────────────────────────────────────
+      addLog('Gerando código de pareamento para acesso na TV...')
       setPhase('generating')
       const { data: codeData, error: codeErr } = await supabase.functions.invoke('generate-code')
       if (codeErr) throw codeErr
       setCode(codeData.code)
       setProgress(100)
+      addLog(`Código gerado com sucesso: ${codeData.code}`)
 
     } catch (err: any) {
+      addLog(`[ERRO] ${err.message}`)
       const msg: string = err.message || 'Erro ao processar playlist'
       const friendly = msg.includes('403')
         ? 'Provedor IPTV bloqueou o acesso. Baixe o arquivo .m3u e use o modo Arquivo.'
@@ -332,9 +384,9 @@ export function UploadPlaylist() {
             </div>
           )}
 
-          {/* Progresso */}
+          {/* Progresso e Logs */}
           {loading && (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {phase && (
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
@@ -347,6 +399,35 @@ export function UploadPlaylist() {
                     className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
+                </div>
+              )}
+
+              {/* Terminal de Logs */}
+              {logs.length > 0 && (
+                <div className="bg-black/50 border border-gray-800 rounded-lg p-3 h-48 overflow-y-auto font-mono text-xs text-gray-400 flex flex-col gap-1.5 shadow-inner">
+                  {logs.map((log, i) => {
+                    const isError = log.includes('[ERRO]')
+                    const isSuccess = log.includes('concluído') || log.includes('sucesso')
+                    const isSystem = log.startsWith('[') && !isError
+                    
+                    const logMsg = log.replace(/^\[[\d:]+\]\s*/, '')
+                    const timeMatch = log.match(/^\[([\d:]+)\]/)
+                    const time = timeMatch ? timeMatch[1] : ''
+
+                    return (
+                      <div key={i} className="animate-in fade-in slide-in-from-bottom-1 flex gap-2">
+                        <span className="text-gray-600 shrink-0">[{time}]</span>
+                        <span className={`
+                          ${isError ? 'text-red-400' : ''}
+                          ${isSuccess ? 'text-green-400' : ''}
+                          ${!isError && !isSuccess ? 'text-gray-300' : ''}
+                        `}>
+                          {logMsg}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
                 </div>
               )}
             </div>
