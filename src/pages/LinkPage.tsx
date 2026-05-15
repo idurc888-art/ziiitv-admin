@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-type Step = 'loading' | 'type_token' | 'login' | 'email_sent' | 'form' | 'success' | 'expired' | 'error'
+type Step = 'loading' | 'type_token' | 'login' | 'email_sent' | 'login_confirm' | 'form' | 'success' | 'expired' | 'error'
 type Mode = 'm3u' | 'xtream'
 
 interface PairTokenRow {
@@ -27,6 +27,10 @@ export function LinkPage() {
   const [user, setUser]         = useState('')
   const [pass, setPass]         = useState('')
   const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPass, setConfirmPass] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [authTab, setAuthTab]   = useState<'login' | 'signup'>('login')
   const [inputToken, setInputToken] = useState('')
   const [activeToken, setActiveToken] = useState(token)
   const [submitting, setSubmitting] = useState(false)
@@ -101,6 +105,34 @@ export function LinkPage() {
     setSubmitting(false)
     if (error) { setErrorMsg('Erro ao enviar o link. Tente novamente.'); return }
     setStep('email_sent')
+  }
+
+  async function handleEmailPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setErrorMsg('')
+    if (!email.trim() || !password) return
+    if (authTab === 'signup' && password !== confirmPass) { setErrorMsg('As senhas não coincidem.'); return }
+    if (password.length < 6) { setErrorMsg('Senha deve ter ao menos 6 caracteres.'); return }
+    setSubmitting(true)
+
+    if (authTab === 'login') {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) { setErrorMsg('E-mail ou senha incorretos.'); setSubmitting(false); return }
+      // onAuthStateChange já vai mover para 'form'
+    } else {
+      const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
+      if (error) { setErrorMsg(error.message); setSubmitting(false); return }
+      if (data.user) {
+        await supabase.from('users').upsert({ id: data.user.id, email: data.user.email, role: 'user' }, { onConflict: 'id' })
+      }
+      if (!data.session) {
+        setStep('login_confirm')
+        setSubmitting(false)
+        return
+      }
+      // onAuthStateChange vai mover para 'form'
+    }
+    setSubmitting(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -243,17 +275,19 @@ export function LinkPage() {
         )}
 
         {step === 'login' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ textAlign: 'center', marginBottom: 4 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Criar sua conta</div>
-              <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
-                Entre para vincular sua lista de canais à TV.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
+                {authTab === 'login' ? 'Entre na sua conta' : 'Crie sua conta grátis'}
+              </div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>
+                Para vincular sua lista de canais à TV
               </div>
             </div>
 
             {/* Google */}
-            <button type="button" onClick={handleGoogleLogin} style={btnSecondary}>
-              <svg width="18" height="18" viewBox="0 0 48 48">
+            <button type="button" onClick={handleGoogleLogin} style={{ ...btnSecondary, marginBottom: 16 }}>
+              <svg width="18" height="18" viewBox="0 0 48 48" style={{ flexShrink: 0 }}>
                 <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l6-6C34.5 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/>
                 <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l6-6C34.5 6.5 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
                 <path fill="#4CAF50" d="M24 44c5.2 0 10-1.9 13.7-5.1l-6.3-5.3C29.5 35.3 26.9 36 24 36c-5.2 0-9.6-3-11.3-7.2l-6.6 5.1C9.7 39.7 16.3 44 24 44z"/>
@@ -263,48 +297,72 @@ export function LinkPage() {
             </button>
 
             {/* Divisor */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>ou</span>
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>ou use seu e-mail</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
             </div>
 
-            {/* Email magic link */}
-            <form onSubmit={handleEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Tabs login/signup */}
+            <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 4, marginBottom: 16 }}>
+              {(['login', 'signup'] as const).map(t => (
+                <button key={t} type="button" onClick={() => { setAuthTab(t); setErrorMsg('') }} style={{
+                  flex: 1, padding: '8px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', fontWeight: 600, fontSize: 13, transition: 'all 0.15s',
+                  background: authTab === t ? PINK : 'transparent',
+                  color: authTab === t ? '#fff' : 'rgba(255,255,255,0.4)',
+                }}>
+                  {t === 'login' ? 'Entrar' : 'Criar conta'}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={handleEmailPassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="seu@email.com" required style={input}
               />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPass ? 'text' : 'password'} value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Senha" required style={{ ...input, paddingRight: 44 }}
+                />
+                <button type="button" onClick={() => setShowPass(v => !v)} style={{
+                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: 0, fontSize: 13,
+                }}>
+                  {showPass ? '🙈' : '👁️'}
+                </button>
+              </div>
+              {authTab === 'signup' && (
+                <input
+                  type={showPass ? 'text' : 'password'} value={confirmPass}
+                  onChange={e => setConfirmPass(e.target.value)}
+                  placeholder="Confirmar senha" required
+                  style={{ ...input, borderColor: confirmPass && confirmPass !== password ? 'rgba(255,80,80,0.5)' : undefined }}
+                />
+              )}
               {errorMsg && (
-                <div style={{ background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)', borderRadius: 10, padding: '12px 16px', fontSize: 14, color: '#ff6b6b' }}>
+                <div style={{ background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#ff6b6b' }}>
                   {errorMsg}
                 </div>
               )}
-              <button type="submit" disabled={submitting} style={{ ...btnPrimary, opacity: submitting ? 0.5 : 1 }}>
-                {submitting ? 'Enviando...' : 'Receber link por e-mail'}
+              <button type="submit" disabled={submitting} style={{ ...btnPrimary, marginTop: 4, opacity: submitting ? 0.6 : 1 }}>
+                {submitting ? '...' : authTab === 'login' ? 'Entrar' : 'Criar conta'}
               </button>
             </form>
+          </div>
+        )}
 
-            {/* Divisor */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>ou</span>
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+        {step === 'login_confirm' && (
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ fontSize: 52 }}>📬</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>Confirme seu e-mail</div>
+            <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+              Enviamos um link para <strong style={{ color: '#fff' }}>{email}</strong>.<br />
+              Clique no link e volte aqui para continuar.
             </div>
-
-            {/* Sem cadastro */}
-            <button
-              type="button"
-              onClick={() => setStep('form')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
-            >
-              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', textAlign: 'center', lineHeight: 1.5 }}>
-                Continuar sem cadastro
-              </div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', textAlign: 'center', marginTop: 2 }}>
-                Grátis por 7 dias — pediremos cadastro depois
-              </div>
-            </button>
           </div>
         )}
 
