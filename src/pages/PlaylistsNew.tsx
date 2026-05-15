@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { supabase, supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import {
   Trash2, Calendar, CheckCircle, XCircle, Clock,
-  Eye, Clapperboard, Film, Tv2, Sparkles, Info,
+  Eye, Clapperboard, Film, Tv2, Sparkles, Info, Copy, Check,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -65,6 +65,7 @@ export function Playlists() {
   const [statsMap,  setStatsMap]  = useState<Record<string, PlaylistStats>>({})
   const [loading,   setLoading]   = useState(true)
   const [deleting,  setDeleting]  = useState<string | null>(null)
+  const [copied,    setCopied]    = useState<string | null>(null)
 
   const loadPlaylists = useCallback(async () => {
     setLoading(true)
@@ -83,11 +84,10 @@ export function Playlists() {
           .order('created_at', { ascending: false }),
       ])
 
+      const activeCode = codes?.[0]?.code ?? undefined
       const list: Playlist[] = (pls || []).map(pl => ({
         ...pl,
-        pairing_code: codes?.find(c =>
-          Math.abs(new Date(c.created_at).getTime() - new Date(pl.created_at).getTime()) < 60000
-        )?.code,
+        pairing_code: activeCode,
       }))
 
       setPlaylists(list)
@@ -113,11 +113,11 @@ export function Playlists() {
 
   async function loadStats(pid: string) {
     const [totalRes, seriesRes, moviesRes, liveRes, enrichedRes] = await Promise.all([
-      supabaseAdmin.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid),
-      supabaseAdmin.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).eq('content_type', 'series'),
-      supabaseAdmin.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).eq('content_type', 'movie'),
-      supabaseAdmin.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).eq('content_type', 'live'),
-      supabaseAdmin.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).not('canonical_id', 'is', null),
+      supabase.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid),
+      supabase.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).eq('content_type', 'series'),
+      supabase.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).eq('content_type', 'movie'),
+      supabase.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).eq('content_type', 'live'),
+      supabase.from('channels').select('*', { count: 'exact', head: true }).eq('playlist_id', pid).not('canonical_id', 'is', null),
     ])
 
     setStatsMap(prev => ({
@@ -212,9 +212,20 @@ export function Playlists() {
                         {statusLabel(pl.status)}
                       </span>
                       {pl.pairing_code && (
-                        <code className="px-2 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-full font-mono text-xs font-bold">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(pl.pairing_code!)
+                            setCopied(pl.id)
+                            setTimeout(() => setCopied(null), 2000)
+                          }}
+                          title="Copiar código para a TV"
+                          className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-full font-mono text-xs font-bold hover:bg-purple-500/25 transition-colors"
+                        >
                           {pl.pairing_code}
-                        </code>
+                          {copied === pl.id
+                            ? <Check className="w-3 h-3 text-green-400" />
+                            : <Copy className="w-3 h-3 opacity-60" />}
+                        </button>
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
