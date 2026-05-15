@@ -19,13 +19,31 @@ import { UploadPlaylist } from './pages/UploadPlaylist'
 import { ChannelDetail } from './pages/ChannelDetail'
 import { EnrichQueue } from './pages/EnrichQueue'
 import { LinkPage } from './pages/LinkPage'
+import { Homes } from './pages/Homes'
+import { HomeEditor } from './pages/HomeEditor'
 
 export function App() {
-  const initialize = useAuthStore((s) => s.initialize)
+  const { initialize, initialized } = useAuthStore((s) => ({
+    initialize: s.initialize,
+    initialized: s.initialized
+  }))
 
   useEffect(() => {
     initialize()
   }, [initialize])
+
+  // Garante que o app não renderiza rotas antes do auth estar pronto
+  // evitando flashes e redirects incorretos sem refresh
+  if (!initialized) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          <p className="text-text-muted text-sm">Iniciando...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -48,6 +66,8 @@ export function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/homes" element={<Homes />} />
+              <Route path="/homes/:id" element={<HomeEditor />} />
               <Route path="/upload" element={<UploadPlaylist />} />
               <Route path="/preview" element={<ChannelsPreview />} />
               <Route path="/users" element={<Users />} />
