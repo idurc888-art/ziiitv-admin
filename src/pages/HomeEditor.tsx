@@ -1,29 +1,90 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseAdmin } from '../lib/supabase'
 import { toast } from 'react-hot-toast'
 import {
-  ArrowLeft,
-  Plus,
-  GripVertical,
-  Trash2,
-  Pencil,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  CheckCircle2
+  ArrowLeft, Plus, GripVertical, Trash2, Pencil,
+  ChevronDown, ChevronUp, Loader2, CheckCircle2, Check,
+  Tv2, Film, Clapperboard, Sparkles, Eye, EyeOff,
 } from 'lucide-react'
 
-const SECTION_TYPES = [
-  { value: 'continue_watching', label: 'Continuar Assistindo' },
-  { value: 'editorial', label: 'Editorial (Admin escolhe)' },
-  { value: 'canonical_movies', label: 'Filmes do Catálogo' },
-  { value: 'canonical_series', label: 'Séries do Catálogo' },
-  { value: 'by_streaming', label: 'Por Streaming (Netflix, Prime...)' },
-  { value: 'by_genre', label: 'Por Gênero' },
-  { value: 'recently_added', label: 'Adicionados Recentemente' },
-  { value: 'live_featured', label: 'TV ao Vivo em Destaque' },
+// ─── Metadados de exibição ────────────────────────────────────────────────────
+
+const SERIES_META: Record<string, { label: string; color: string }> = {
+  netflix:       { label: 'Netflix',          color: 'bg-red-600' },
+  hbo:           { label: 'HBO Max',           color: 'bg-purple-600' },
+  disney:        { label: 'Disney+',           color: 'bg-blue-600' },
+  amazon:        { label: 'Amazon Prime',      color: 'bg-orange-500' },
+  globoplay:     { label: 'Globoplay',         color: 'bg-green-600' },
+  paramount:     { label: 'Paramount+',        color: 'bg-blue-500' },
+  apple:         { label: 'Apple TV+',         color: 'bg-zinc-700' },
+  star:          { label: 'Star+',             color: 'bg-yellow-500' },
+  crunchyroll:   { label: 'Crunchyroll',       color: 'bg-orange-600' },
+  discovery:     { label: 'Discovery+',        color: 'bg-sky-600' },
+  novelas:       { label: 'Novelas',           color: 'bg-pink-500' },
+  kids:          { label: 'Kids / Desenhos',   color: 'bg-yellow-400' },
+  series_leg:    { label: 'Legendadas',        color: 'bg-slate-500' },
+  series_outros: { label: 'Outras Séries',     color: 'bg-slate-400' },
+  starz:         { label: 'Starz',             color: 'bg-yellow-600' },
+  directv:       { label: 'DirecTV',           color: 'bg-blue-700' },
+  outros:        { label: 'Outras',            color: 'bg-slate-400' },
+}
+
+const MOVIE_META: Record<string, { label: string; color: string }> = {
+  filmes_acao:        { label: 'Ação',               color: 'bg-red-600' },
+  filmes_drama:       { label: 'Drama',              color: 'bg-purple-500' },
+  filmes_comedia:     { label: 'Comédia',            color: 'bg-yellow-500' },
+  filmes_terror:      { label: 'Terror',             color: 'bg-zinc-800' },
+  filmes_suspense:    { label: 'Suspense',           color: 'bg-indigo-600' },
+  filmes_crime:       { label: 'Crime',              color: 'bg-zinc-700' },
+  filmes_4k:          { label: '4K UHD',             color: 'bg-teal-600' },
+  filmes_leg:         { label: 'Legendados',         color: 'bg-slate-500' },
+  filmes_nacionais:   { label: 'Nacionais',          color: 'bg-green-700' },
+  filmes_lancamentos: { label: 'Lançamentos',        color: 'bg-orange-500' },
+  filmes_ficcao:      { label: 'Ficção Científica',  color: 'bg-cyan-600' },
+  filmes_marvel:      { label: 'Marvel & DC',        color: 'bg-red-700' },
+  filmes_animacao:    { label: 'Animação',           color: 'bg-pink-500' },
+  filmes_romance:     { label: 'Romance',            color: 'bg-rose-500' },
+  filmes_aventura:    { label: 'Aventura',           color: 'bg-amber-600' },
+  filmes_classicos:   { label: 'Clássicos',          color: 'bg-amber-800' },
+  filmes_doc:         { label: 'Documentários',      color: 'bg-stone-600' },
+  filmes_kids:        { label: 'Infantis',           color: 'bg-yellow-400' },
+  netflix:            { label: 'Netflix',            color: 'bg-red-600' },
+  hbo:                { label: 'HBO Max',            color: 'bg-purple-600' },
+  disney:             { label: 'Disney+',            color: 'bg-blue-600' },
+  amazon:             { label: 'Amazon Prime',       color: 'bg-orange-500' },
+  telecine:           { label: 'Telecine',           color: 'bg-red-800' },
+  globoplay:          { label: 'Globoplay',          color: 'bg-green-600' },
+  star:               { label: 'Star+',              color: 'bg-yellow-500' },
+  paramount:          { label: 'Paramount+',         color: 'bg-blue-500' },
+  outros:             { label: 'Outros Filmes',      color: 'bg-slate-400' },
+}
+
+const LIVE_META: Record<string, { label: string; color: string }> = {
+  canais_esportes:   { label: 'Esportes',        color: 'bg-green-600' },
+  canais_globo:      { label: 'Globo',           color: 'bg-green-500' },
+  canais_abertos:    { label: 'Canais Abertos',  color: 'bg-blue-500' },
+  canais_hbo:        { label: 'HBO / Max',       color: 'bg-purple-600' },
+  canais_sbt:        { label: 'SBT',             color: 'bg-blue-400' },
+  canais_record:     { label: 'Record',          color: 'bg-red-600' },
+  canais_band:       { label: 'Band',            color: 'bg-yellow-600' },
+  canais_noticias:   { label: 'Notícias',        color: 'bg-slate-600' },
+  canais_kids:       { label: 'Infantis',        color: 'bg-yellow-400' },
+  canais_religiosos: { label: 'Religiosos',      color: 'bg-indigo-500' },
+  canais_variedades: { label: 'Variedades',      color: 'bg-pink-500' },
+  canais_4k:         { label: '4K ao Vivo',      color: 'bg-teal-600' },
+  outros:            { label: 'Outros Canais',   color: 'bg-slate-400' },
+}
+
+const SPECIAL_SECTIONS = [
+  { type: 'continue_watching',  label: 'Continuar Assistindo',    desc: 'Retoma o que o usuário estava assistindo',  color: 'bg-accent' },
+  { type: 'recently_added',     label: 'Adicionados Recentemente', desc: 'Canais mais novos na playlist do usuário', color: 'bg-sky-600' },
+  { type: 'editorial',          label: 'Em Destaque (Editorial)',  desc: 'Admin escolhe o que aparecer',             color: 'bg-purple-600' },
+  { type: 'canonical_movies',   label: 'Filmes do Catálogo',      desc: 'Todos os filmes disponíveis',              color: 'bg-orange-500' },
+  { type: 'canonical_series',   label: 'Séries do Catálogo',      desc: 'Todas as séries disponíveis',              color: 'bg-green-600' },
 ]
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Section {
   id: string
@@ -41,285 +102,545 @@ interface HomeInfo {
   is_active: boolean
 }
 
+type TabKey = 'series' | 'movies' | 'live' | 'special'
+
+// ─── Componente ───────────────────────────────────────────────────────────────
+
 export function HomeEditor() {
   const { id } = useParams<{ id: string }>()
-  const [homeInfo, setHomeInfo] = useState<HomeInfo | null>(null)
-  const [sections, setSections] = useState<Section[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [editingSection, setEditingSection] = useState<Section | null>(null)
-  const [sectionForm, setSectionForm] = useState({ title: '', type: 'editorial', config_streaming: '', config_genre: '' })
-  const [saving, setSaving] = useState(false)
 
+  const [homeInfo,    setHomeInfo]    = useState<HomeInfo | null>(null)
+  const [sections,    setSections]    = useState<Section[]>([])
+  const [loadingHome, setLoadingHome] = useState(true)
+  const [stats,       setStats]       = useState<Record<string, Record<string, number>>>({})
+  const [statsLoading,setStatsLoading]= useState(true)
+  const [activeTab,   setActiveTab]   = useState<TabKey>('series')
+  const [editingSection, setEditingSection] = useState<Section | null>(null)
+  const [editTitle,   setEditTitle]   = useState('')
+  const [adding,      setAdding]      = useState<string | null>(null)
+
+  // ── Carrega home + seções ─────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     if (!id) return
-    setLoading(true)
+    setLoadingHome(true)
     const [{ data: home }, { data: secs }] = await Promise.all([
       supabase.from('homes').select('id, name, is_active').eq('id', id).single(),
-      supabase.from('home_sections').select('*').eq('home_id', id).order('sort_order')
+      supabase.from('home_sections').select('*').eq('home_id', id).order('sort_order'),
     ])
     setHomeInfo(home)
     setSections(secs || [])
-    setLoading(false)
+    setLoadingHome(false)
   }, [id])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  // ── Carrega estatísticas do catálogo ──────────────────────────────────────
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
+    const { data: rows } = await supabaseAdmin
+      .from('channels')
+      .select('streaming, content_type')
+      .in('content_type', ['series', 'movie', 'live'])
+      .limit(200000)
 
-  function openAdd() {
-    setEditingSection(null)
-    setSectionForm({ title: '', type: 'editorial', config_streaming: '', config_genre: '' })
-    setShowAddModal(true)
-  }
+    const acc: Record<string, Record<string, number>> = { series: {}, movie: {}, live: {} }
+    for (const row of (rows || [])) {
+      const ct = row.content_type as string || 'live'
+      const st = row.streaming   as string || 'outros'
+      if (!acc[ct]) acc[ct] = {}
+      acc[ct][st] = (acc[ct][st] || 0) + 1
+    }
+    setStats(acc)
+    setStatsLoading(false)
+  }, [])
 
-  function openEdit(s: Section) {
-    setEditingSection(s)
-    setSectionForm({
-      title: s.title,
-      type: s.type,
-      config_streaming: s.config?.streaming || '',
-      config_genre: s.config?.genre || ''
-    })
-    setShowAddModal(true)
-  }
+  useEffect(() => { fetchData(); fetchStats() }, [fetchData, fetchStats])
 
-  function buildConfig(form: typeof sectionForm) {
-    const cfg: any = {}
-    if (form.config_streaming) cfg.streaming = form.config_streaming
-    if (form.config_genre) cfg.genre = form.config_genre
-    return Object.keys(cfg).length ? cfg : null
-  }
+  // ── Adicionar seção do catálogo ───────────────────────────────────────────
+  async function addFromCatalog(
+    streaming: string,
+    contentType: string,
+    label: string,
+    sectionType: string,
+  ) {
+    const key = `${streaming}:${contentType}`
+    setAdding(key)
+    const config = contentType === 'special'
+      ? null
+      : { streaming, content_type: contentType }
 
-  async function handleSaveSection() {
-    if (!sectionForm.title.trim()) { toast.error('Título obrigatório'); return }
-    setSaving(true)
-    const config = buildConfig(sectionForm)
-    const payload = {
-      home_id: id,
-      title: sectionForm.title,
-      type: sectionForm.type,
-      active: true,
+    const { error } = await supabase.from('home_sections').insert({
+      home_id:    id,
+      title:      label,
+      type:       sectionType,
+      active:     true,
       config,
-      sort_order: editingSection ? editingSection.sort_order : sections.length
-    }
-    if (editingSection) {
-      const { error } = await supabase.from('home_sections').update(payload).eq('id', editingSection.id)
-      if (error) toast.error('Erro ao salvar')
-      else { toast.success('Seção atualizada!'); setShowAddModal(false); fetchData() }
-    } else {
-      const { error } = await supabase.from('home_sections').insert(payload)
-      if (error) toast.error('Erro ao criar')
-      else { toast.success('Seção criada!'); setShowAddModal(false); fetchData() }
-    }
-    setSaving(false)
+      sort_order: sections.length,
+    })
+    if (error) toast.error('Erro ao adicionar: ' + error.message)
+    else { toast.success(`"${label}" adicionada!`); fetchData() }
+    setAdding(null)
   }
 
+  // ── Verifica se já está na home ───────────────────────────────────────────
+  function isInHome(streaming: string, contentType: string): boolean {
+    if (contentType === 'special') return sections.some(s => s.type === streaming)
+    return sections.some(s =>
+      s.config?.streaming === streaming && s.config?.content_type === contentType
+    )
+  }
+
+  // ── Ações das seções ──────────────────────────────────────────────────────
   async function handleToggle(s: Section) {
     await supabase.from('home_sections').update({ active: !s.active }).eq('id', s.id)
     setSections(prev => prev.map(sec => sec.id === s.id ? { ...sec, active: !sec.active } : sec))
   }
 
   async function handleDelete(s: Section) {
-    if (!confirm(`Deletar seção "${s.title}"?`)) return
+    if (!confirm(`Remover "${s.title}" da home?`)) return
     await supabase.from('home_sections').delete().eq('id', s.id)
     toast.success('Seção removida')
     fetchData()
   }
 
-  async function moveSection(index: number, dir: -1 | 1) {
-    const newSecs = [...sections]
-    const target = index + dir
-    if (target < 0 || target >= newSecs.length) return
-    const a = newSecs[index]
-    const b = newSecs[target]
-    newSecs[index] = { ...b, sort_order: a.sort_order }
-    newSecs[target] = { ...a, sort_order: b.sort_order }
-    setSections(newSecs)
-    await Promise.all([
-      supabase.from('home_sections').update({ sort_order: a.sort_order }).eq('id', b.id),
-      supabase.from('home_sections').update({ sort_order: b.sort_order }).eq('id', a.id)
-    ])
+  async function handleRename(s: Section) {
+    if (!editTitle.trim()) return
+    await supabase.from('home_sections').update({ title: editTitle }).eq('id', s.id)
+    toast.success('Título atualizado')
+    setEditingSection(null)
+    fetchData()
   }
 
-  const typeMeta = (type: string) => SECTION_TYPES.find(t => t.value === type)
+  async function moveSection(index: number, dir: -1 | 1) {
+    const sorted = [...sections].sort((a, b) => a.sort_order - b.sort_order)
+    const target = index + dir
+    if (target < 0 || target >= sorted.length) return
+    const a = sorted[index]
+    const b = sorted[target]
+    await Promise.all([
+      supabase.from('home_sections').update({ sort_order: b.sort_order }).eq('id', a.id),
+      supabase.from('home_sections').update({ sort_order: a.sort_order }).eq('id', b.id),
+    ])
+    fetchData()
+  }
+
+  // ─── Renderização do catálogo ───────────────────────────────────────────────
+
+  function CatalogRow({
+    streaming, contentType, label, color, count, sectionType,
+  }: {
+    streaming: string; contentType: string; label: string
+    color: string; count: number; sectionType: string
+  }) {
+    const inHome  = isInHome(streaming, contentType)
+    const key     = `${streaming}:${contentType}`
+    const loading = adding === key
+
+    return (
+      <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+        inHome ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface hover:bg-elevated'
+      }`}>
+        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${color}`} />
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium text-text-primary">{label}</span>
+        </div>
+        {count > 0 && (
+          <span className="text-xs font-mono text-text-muted bg-elevated px-1.5 py-0.5 rounded border border-border flex-shrink-0">
+            {count.toLocaleString('pt-BR')}
+          </span>
+        )}
+        {inHome ? (
+          <span className="flex items-center gap-1 text-xs text-accent font-medium flex-shrink-0 px-2">
+            <Check className="w-3 h-3" /> Na home
+          </span>
+        ) : (
+          <button
+            onClick={() => addFromCatalog(streaming, contentType, label, sectionType)}
+            disabled={!!loading}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex-shrink-0"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+            Adicionar
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  function renderCatalog() {
+    if (statsLoading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 text-accent animate-spin" />
+          <span className="ml-2 text-sm text-text-muted">Carregando catálogo...</span>
+        </div>
+      )
+    }
+
+    if (activeTab === 'series') {
+      const data = stats['series'] || {}
+      const sorted = Object.entries(data).sort((a, b) => b[1] - a[1])
+      const known   = sorted.filter(([k]) => SERIES_META[k])
+      const unknown = sorted.filter(([k]) => !SERIES_META[k])
+      const items   = [...known, ...unknown]
+
+      if (items.length === 0) return <EmptyCatalog label="séries" />
+
+      return (
+        <div className="space-y-1.5">
+          {items.map(([streaming, count]) => {
+            const meta = SERIES_META[streaming] || { label: streaming, color: 'bg-slate-400' }
+            return (
+              <CatalogRow
+                key={streaming}
+                streaming={streaming}
+                contentType="series"
+                label={meta.label}
+                color={meta.color}
+                count={count}
+                sectionType="by_streaming"
+              />
+            )
+          })}
+        </div>
+      )
+    }
+
+    if (activeTab === 'movies') {
+      const data = stats['movie'] || {}
+      const sorted = Object.entries(data).sort((a, b) => b[1] - a[1])
+      const known   = sorted.filter(([k]) => MOVIE_META[k])
+      const unknown = sorted.filter(([k]) => !MOVIE_META[k])
+      const items   = [...known, ...unknown]
+
+      if (items.length === 0) return <EmptyCatalog label="filmes" />
+
+      return (
+        <div className="space-y-1.5">
+          {items.map(([streaming, count]) => {
+            const meta = MOVIE_META[streaming] || { label: streaming, color: 'bg-slate-400' }
+            return (
+              <CatalogRow
+                key={streaming}
+                streaming={streaming}
+                contentType="movie"
+                label={meta.label}
+                color={meta.color}
+                count={count}
+                sectionType="by_streaming"
+              />
+            )
+          })}
+        </div>
+      )
+    }
+
+    if (activeTab === 'live') {
+      const data = stats['live'] || {}
+      const sorted = Object.entries(data).sort((a, b) => b[1] - a[1])
+      const known   = sorted.filter(([k]) => LIVE_META[k])
+      const unknown = sorted.filter(([k]) => !LIVE_META[k])
+      const items   = [...known, ...unknown]
+
+      if (items.length === 0) return <EmptyCatalog label="canais ao vivo" />
+
+      return (
+        <div className="space-y-1.5">
+          {items.map(([streaming, count]) => {
+            const meta = LIVE_META[streaming] || { label: streaming, color: 'bg-slate-400' }
+            return (
+              <CatalogRow
+                key={streaming}
+                streaming={streaming}
+                contentType="live"
+                label={meta.label}
+                color={meta.color}
+                count={count}
+                sectionType="live_featured"
+              />
+            )
+          })}
+        </div>
+      )
+    }
+
+    if (activeTab === 'special') {
+      return (
+        <div className="space-y-1.5">
+          {SPECIAL_SECTIONS.map(sp => {
+            const inHome  = isInHome(sp.type, 'special')
+            const loading = adding === `${sp.type}:special`
+            return (
+              <div
+                key={sp.type}
+                className={`flex items-start gap-3 px-3 py-3 rounded-lg border transition-all ${
+                  inHome ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface hover:bg-elevated'
+                }`}
+              >
+                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${sp.color}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text-primary">{sp.label}</p>
+                  <p className="text-xs text-text-muted mt-0.5">{sp.desc}</p>
+                </div>
+                {inHome ? (
+                  <span className="flex items-center gap-1 text-xs text-accent font-medium flex-shrink-0 px-2 mt-0.5">
+                    <Check className="w-3 h-3" /> Na home
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => addFromCatalog(sp.type, 'special', sp.label, sp.type)}
+                    disabled={!!loading}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex-shrink-0 mt-0.5"
+                  >
+                    {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    Adicionar
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  function EmptyCatalog({ label }: { label: string }) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center text-text-muted">
+        <p className="text-sm">Nenhum(a) {label} encontrado(a) no banco.</p>
+        <p className="text-xs mt-1">Faça upload de uma playlist M3U primeiro.</p>
+      </div>
+    )
+  }
+
+  // ─── Estatísticas do catálogo por tab ────────────────────────────────────────
+
+  function tabCount(tab: TabKey): number {
+    if (tab === 'series')  return Object.values(stats['series']  || {}).reduce((a, b) => a + b, 0)
+    if (tab === 'movies')  return Object.values(stats['movie']   || {}).reduce((a, b) => a + b, 0)
+    if (tab === 'live')    return Object.values(stats['live']    || {}).reduce((a, b) => a + b, 0)
+    return 0
+  }
+
+  function tabCategoryCount(tab: TabKey): number {
+    if (tab === 'series')  return Object.keys(stats['series']  || {}).length
+    if (tab === 'movies')  return Object.keys(stats['movie']   || {}).length
+    if (tab === 'live')    return Object.keys(stats['live']    || {}).length
+    return SPECIAL_SECTIONS.length
+  }
+
+  const sorted = [...sections].sort((a, b) => a.sort_order - b.sort_order)
+
+  const TABS: { key: TabKey; label: string; Icon: any }[] = [
+    { key: 'series',  label: 'Séries',  Icon: Clapperboard },
+    { key: 'movies',  label: 'Filmes',  Icon: Film },
+    { key: 'live',    label: 'Canais',  Icon: Tv2 },
+    { key: 'special', label: 'Especiais', Icon: Sparkles },
+  ]
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
+    <div className="h-full flex flex-col" style={{ minHeight: 0 }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-4 px-6 py-4 border-b border-border flex-shrink-0">
         <Link to="/homes" className="p-2 rounded-lg text-text-muted hover:bg-elevated transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-text-primary">
-              {homeInfo?.name || 'Carregando...'}
+            <h1 className="text-lg font-bold text-text-primary truncate">
+              {loadingHome ? '...' : homeInfo?.name || 'Home'}
             </h1>
             {homeInfo?.is_active && (
-              <span className="flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent text-xs rounded-full font-medium">
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent text-xs rounded-full font-medium flex-shrink-0">
                 <CheckCircle2 className="w-3 h-3" /> Ativa na TV
               </span>
             )}
           </div>
-          <p className="text-sm text-text-muted">Editor de seções — arranje e configure os trilhos da home</p>
+          <p className="text-xs text-text-muted">
+            Clique em <strong>Adicionar</strong> no catálogo para montar os trilhos da home
+          </p>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Adicionar Seção
-        </button>
+        <div className="text-right flex-shrink-0">
+          <p className="text-xs text-text-muted">Seções ativas</p>
+          <p className="text-2xl font-bold text-text-primary">{sections.filter(s => s.active).length}</p>
+        </div>
       </div>
 
-      {/* Sections */}
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 text-accent animate-spin" />
-        </div>
-      ) : sections.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-text-muted text-sm mb-4">Nenhuma seção ainda. Adicione a primeira!</p>
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm">
-            <Plus className="w-4 h-4" /> Adicionar Seção
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sections.sort((a, b) => a.sort_order - b.sort_order).map((s, i) => (
-            <div
-              key={s.id}
-              className={`bg-surface border rounded-xl p-4 flex items-center gap-4 transition-all ${
-                s.active ? 'border-border' : 'border-border opacity-50'
-              }`}
-            >
-              {/* Drag handle & order */}
-              <div className="flex flex-col items-center gap-0.5 text-text-faint">
-                <button onClick={() => moveSection(i, -1)} disabled={i === 0} className="hover:text-text-primary disabled:opacity-20 transition-colors">
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-                <GripVertical className="w-4 h-4" />
-                <button onClick={() => moveSection(i, 1)} disabled={i === sections.length - 1} className="hover:text-text-primary disabled:opacity-20 transition-colors">
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              </div>
+      {/* ── Corpo — dois painéis ────────────────────────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
 
-              {/* Order number */}
-              <div className="w-7 h-7 rounded-full bg-elevated flex items-center justify-center text-xs text-text-muted font-mono flex-shrink-0">
-                {i + 1}
-              </div>
+        {/* ── Painel esquerdo: Catálogo ────────────────────────────────────── */}
+        <div className="w-[58%] flex flex-col border-r border-border overflow-hidden">
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-text-primary text-sm">{s.title}</p>
-                <p className="text-xs text-text-muted">
-                  {typeMeta(s.type)?.label || s.type}
-                  {s.config?.streaming && <> · {s.config.streaming}</>}
-                  {s.config?.genre && <> · {s.config.genre}</>}
-                </p>
-              </div>
-
-              {/* Toggle active */}
+          {/* Tabs */}
+          <div className="flex border-b border-border flex-shrink-0">
+            {TABS.map(({ key, label, Icon }) => (
               <button
-                onClick={() => handleToggle(s)}
-                className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                  s.active
-                    ? 'bg-success/10 text-success hover:bg-success/20'
-                    : 'bg-elevated text-text-muted hover:bg-border'
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`flex-1 flex flex-col items-center py-3 px-2 text-xs font-medium transition-colors border-b-2 gap-0.5 ${
+                  activeTab === key
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-text-muted hover:text-text-primary'
                 }`}
               >
-                {s.active ? 'Visível' : 'Oculta'}
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
+                {!statsLoading && key !== 'special' && (
+                  <span className="text-[10px] font-mono opacity-70">
+                    {tabCount(key).toLocaleString('pt-BR')}
+                  </span>
+                )}
               </button>
+            ))}
+          </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => openEdit(s)}
-                  className="p-2 rounded-lg text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(s)}
-                  className="p-2 rounded-lg text-text-muted hover:bg-danger/10 hover:text-danger transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+          {/* Sub-header com totais */}
+          {!statsLoading && activeTab !== 'special' && (
+            <div className="px-4 py-2 bg-elevated/50 border-b border-border flex items-center gap-3 flex-shrink-0">
+              <span className="text-xs text-text-muted">
+                <strong className="text-text-primary">{tabCategoryCount(activeTab)}</strong> categorias ·{' '}
+                <strong className="text-text-primary">{tabCount(activeTab).toLocaleString('pt-BR')}</strong> itens no banco
+              </span>
+              <span className="text-xs text-text-muted">·</span>
+              <span className="text-xs text-accent">
+                {sections.filter(s =>
+                  activeTab === 'series' ? s.config?.content_type === 'series' :
+                  activeTab === 'movies' ? s.config?.content_type === 'movie' :
+                  activeTab === 'live'   ? s.config?.content_type === 'live' : false
+                ).length} na home
+              </span>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Modal seção */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-bold text-text-primary">
-              {editingSection ? 'Editar Seção' : 'Nova Seção'}
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Título da seção *</label>
-                <input
-                  className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
-                  placeholder="Ex: Em Destaque, Filmes de Ação..."
-                  value={sectionForm.title}
-                  onChange={e => setSectionForm(f => ({ ...f, title: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Tipo</label>
-                <select
-                  className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
-                  value={sectionForm.type}
-                  onChange={e => setSectionForm(f => ({ ...f, type: e.target.value }))}
-                >
-                  {SECTION_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-              {sectionForm.type === 'by_streaming' && (
-                <div>
-                  <label className="block text-xs text-text-muted mb-1">Streaming</label>
-                  <input
-                    className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
-                    placeholder="netflix, prime, disney..."
-                    value={sectionForm.config_streaming}
-                    onChange={e => setSectionForm(f => ({ ...f, config_streaming: e.target.value }))}
-                  />
-                </div>
-              )}
-              {sectionForm.type === 'by_genre' && (
-                <div>
-                  <label className="block text-xs text-text-muted mb-1">Gênero</label>
-                  <input
-                    className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
-                    placeholder="ação, comédia, terror..."
-                    value={sectionForm.config_genre}
-                    onChange={e => setSectionForm(f => ({ ...f, config_genre: e.target.value }))}
-                  />
-                </div>
-              )}
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-elevated transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveSection}
-                disabled={saving}
-                className="flex-1 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {editingSection ? 'Salvar' : 'Criar'}
-              </button>
-            </div>
+          {/* Lista de itens */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {renderCatalog()}
           </div>
         </div>
-      )}
+
+        {/* ── Painel direito: Seções da Home ───────────────────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary">Seções da Home</h2>
+              <p className="text-xs text-text-muted">{sorted.length} seções · arraste para reordenar</p>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3">
+            {loadingHome ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-5 h-5 text-accent animate-spin" />
+              </div>
+            ) : sorted.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <p className="text-sm text-text-muted mb-1">Nenhuma seção ainda</p>
+                <p className="text-xs text-text-muted">Use o catálogo ao lado para adicionar rows</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sorted.map((s, i) => (
+                  <div
+                    key={s.id}
+                    className={`rounded-lg border p-2.5 transition-all ${
+                      s.active ? 'border-border bg-surface' : 'border-border/50 bg-surface/50 opacity-60'
+                    }`}
+                  >
+                    {/* Linha principal */}
+                    <div className="flex items-center gap-2">
+                      {/* Reordenar */}
+                      <div className="flex flex-col gap-0.5 flex-shrink-0">
+                        <button
+                          onClick={() => moveSection(i, -1)}
+                          disabled={i === 0}
+                          className="text-text-faint hover:text-text-primary disabled:opacity-20 transition-colors"
+                        >
+                          <ChevronUp className="w-3 h-3" />
+                        </button>
+                        <GripVertical className="w-3 h-3 text-text-faint" />
+                        <button
+                          onClick={() => moveSection(i, 1)}
+                          disabled={i === sorted.length - 1}
+                          className="text-text-faint hover:text-text-primary disabled:opacity-20 transition-colors"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Número */}
+                      <div className="w-5 h-5 rounded bg-elevated flex items-center justify-center text-[10px] text-text-muted font-mono flex-shrink-0">
+                        {i + 1}
+                      </div>
+
+                      {/* Título e config */}
+                      {editingSection?.id === s.id ? (
+                        <input
+                          autoFocus
+                          className="flex-1 text-sm bg-elevated border border-accent rounded px-2 py-0.5 text-text-primary focus:outline-none"
+                          value={editTitle}
+                          onChange={e => setEditTitle(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleRename(s)
+                            if (e.key === 'Escape') setEditingSection(null)
+                          }}
+                          onBlur={() => handleRename(s)}
+                        />
+                      ) : (
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-text-primary truncate">{s.title}</p>
+                          <p className="text-[10px] text-text-muted truncate">
+                            {s.config?.streaming && (
+                              <span className="font-mono">{s.config.streaming}</span>
+                            )}
+                            {s.config?.content_type && (
+                              <span> · {s.config.content_type}</span>
+                            )}
+                            {!s.config && s.type}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Ações */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleToggle(s)}
+                          className={`p-1 rounded transition-colors ${
+                            s.active
+                              ? 'text-green-400 hover:text-text-muted'
+                              : 'text-text-muted hover:text-green-400'
+                          }`}
+                          title={s.active ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {s.active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => { setEditingSection(s); setEditTitle(s.title) }}
+                          className="p-1 rounded text-text-muted hover:text-text-primary transition-colors"
+                          title="Renomear"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s)}
+                          className="p-1 rounded text-text-muted hover:text-danger transition-colors"
+                          title="Remover"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal de rename inline — handled via input above */}
     </div>
   )
 }
