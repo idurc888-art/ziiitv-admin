@@ -92,12 +92,23 @@ export function EnrichQueue() {
   useEffect(() => {
     if (!playlistId) return
     const fetchGroups = async () => {
-      const { data } = await supabase.from('channels').select('group_name, content_type').eq('playlist_id', playlistId)
-      if (data) {
-        const filtered = data.filter(d => (typeFilter === 'movie' ? d.content_type === 'movie' : d.content_type === 'series') && d.group_name)
-        const unique = Array.from(new Set(filtered.map(d => d.group_name as string))).sort()
-        setAvailableGroups(unique)
+      let from = 0
+      const limit = 1000
+      const allGroups = new Set<string>()
+      while (true) {
+        const { data, error } = await supabase
+          .from('channels')
+          .select('group_name')
+          .eq('playlist_id', playlistId)
+          .eq('content_type', typeFilter)
+          .not('group_name', 'is', null)
+          .range(from, from + limit - 1)
+        if (error || !data || data.length === 0) break
+        data.forEach(d => { if (d.group_name) allGroups.add(d.group_name) })
+        if (data.length < limit) break
+        from += limit
       }
+      setAvailableGroups(Array.from(allGroups).sort())
     }
     fetchGroups()
   }, [playlistId, typeFilter])
