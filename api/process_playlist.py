@@ -5,11 +5,14 @@ import unicodedata
 import hashlib
 import urllib.request
 import urllib.error
+import urllib.parse
+import concurrent.futures
 from http.server import BaseHTTPRequestHandler
 from datetime import datetime, timezone
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
+TMDB_KEY     = os.environ.get('TMDB_API_KEY', '')
 
 CORS = {
     'Access-Control-Allow-Origin': '*',
@@ -47,10 +50,7 @@ QUALITY_PATTERNS = [
     (re.compile(r'\bSD\b|\b480[Pp]?\b|\b360[Pp]?\b'), 'SD'),
 ]
 
-# ── Padrões de grupo — todos operam sobre string JA NORMALIZADA (sem acentos) ──
-# IMPORTANTE: detect_type normaliza o grupo antes de checar esses patterns.
-# Isso resolve SERIÉS, SÉRIES, FILMÉ, etc.
-
+# ── Padrões de grupo — operam sobre string sem acentos ──────────────────────
 GROUP_SERIES_FULL = re.compile(
     r'(series?|serie|shows?|novelas?|animes?|sitcom|minisser|temporada|episodio|season|episodes?)',
     re.I
@@ -77,14 +77,12 @@ STREAMING_PREFIX_RE = re.compile(
 QUALITY_ORDER = ['4K', 'FHD', 'HD', 'SD', 'UNKNOWN']
 
 
-# ── Helpers ─────────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def norm(s):
-    """Normaliza para ASCII lowercase. Usado para chaves de deduplicacao."""
     return unicodedata.normalize('NFD', s.lower()).encode('ascii', 'ignore').decode().strip()
 
 def norm_group(s):
-    """Remove acentos mas preserva case original (usado para match de padroes de grupo)."""
     return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode()
 
 def now_iso():
@@ -138,42 +136,26 @@ def clean_title(raw):
     s = re.sub(r'\b(DUAL|DUB(?:LADO)?|LEG(?:ENDADO)?|PT-?BR|LEGENDAS|SUB(?:TITULO)?)\b', '', s, flags=re.I)
     s = re.sub(r'\b(?:19|20)\d{2}\b', '', s)
     s = re.sub(r'\b(VOD|VIP|PREMIUM|PLUS|ULTRA|ONLINE)\b', '', s, flags=re.I)
-    s = re.sub(r'[|_.\\\\-\u2013\u2014:]+', ' ', s)
+    s = re.sub(r'[|_.\\-–—:]+', ' ', s)
     s = re.sub(r'\s{2,}', ' ', s).strip()
     return s.title() if s else ''
 
 
 def detect_type(raw_name, group):
-    """
-    Detecta o tipo do canal com prioridade: series > movie > episodio > live.
-
-    CRITICO: normaliza acentos do grupo antes do match para resolver
-    SERIÉS / SÉRIES / FILMÉS etc que nao batem em ASCII regex.
-    """
-    # Normaliza acentos (SÉRIES -> SERIES, FILMES -> FILMES, etc)
     g = norm_group(group) if group else ''
 
-    # 1. Serie tem prioridade máxima
     if GROUP_SERIES_FULL.search(g):
         return 'series'
-
-    # 2. Filme
     if GROUP_MOVIE_FULL.search(g):
         return 'movie'
-
-    # 3. Episodio no nome do canal
     if extract_episode(raw_name):
         return 'series'
-
-    # 4. Live / kids
     if GROUP_LIVE_FULL.search(g) or GROUP_KIDS_FULL.search(g):
         return 'live'
-
-    # 5. Fallback
     return 'live'
 
 
-# ── Parser M3U ──────────────────────────────────────────────────────────
+# ── Parser M3U ───────────────────────────────────────────────────────────────
 
 def parse_m3u(content):
     channels, current = [], None
@@ -195,7 +177,7 @@ def parse_m3u(content):
     return channels
 
 
-# ── Pipeline principal ─────────────────────────────────────────────────────
+# ── Pipeline principal ────────────────────────────────────────────────────────
 
 def process_channels(raw_channels):
     series_map = {}
@@ -291,7 +273,7 @@ def process_channels(raw_channels):
     }
 
 
-# ── Supabase REST ──────────────────────────────────────────────────────────
+# ── Supabase REST ─────────────────────────────────────────────────────────────
 
 def sb(method, path, body=None, prefer='return=minimal'):
     url  = f"{SUPABASE_URL}/rest/v1/{path}"
@@ -306,14 +288,10 @@ def sb(method, path, body=None, prefer='return=minimal'):
             raw = resp.read()
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
-        raise Exception(f"Supabase {method} {path} \u2192 {e.code}: {e.read().decode()[:200]}")
+        raise Exception(f"Supabase {method} {path} → {e.code}: {e.read().decode()[:200]}")
 
 
 def fetch_raw_channels_from_db(playlist_id):
-    """
-    Keyset pagination usando id como cursor.
-    Evita OFFSET alto que causa statement timeout em tabelas grandes.
-    """
     all_raw = []
     last_id = None
     BATCH   = 2000
@@ -349,8 +327,160 @@ def fetch_raw_channels_from_db(playlist_id):
     return all_raw
 
 
-def save_channels(playlist_id, user_id, channels):
-    inserted = 0
+# ── TMDB enrichment ───────────────────────────────────────────────────────────
+
+def tmdb_search_one(args):
+    name, ctype = args
+    search_types = ['movie'] if ctype == 'movie' else ['tv']
+    for stype in search_types + ['multi']:
+        try:
+            q   = urllib.parse.quote(name)
+            url = (
+                f"https://api.themoviedb.org/3/search/{stype}"
+                f"?api_key={TMDB_KEY}&query={q}&language=pt-BR&page=1"
+            )
+            req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read())
+            results = data.get('results', [])
+            if stype == 'multi':
+                results = [r for r in results if r.get('media_type') in ('movie', 'tv')]
+            if not results:
+                continue
+            r          = results[0]
+            media_type = r.get('media_type', stype)
+            actual_type = 'movie' if media_type == 'movie' else 'series'
+            return name, {
+                'tmdb_id':        r['id'],
+                'title':          r.get('title') or r.get('name', name),
+                'original_title': r.get('original_title') or r.get('original_name'),
+                'poster':         r.get('poster_path'),
+                'backdrop':       r.get('backdrop_path'),
+                'overview':       r.get('overview', ''),
+                'rating':         r.get('vote_average'),
+                'vote_count':     r.get('vote_count'),
+                'popularity':     r.get('popularity'),
+                'year':           (r.get('release_date') or r.get('first_air_date') or '')[:4] or None,
+                'genres':         [str(g) for g in r.get('genre_ids', [])],
+                'type':           actual_type,
+            }
+        except Exception:
+            pass
+    return name, None
+
+
+def parallel_tmdb_search(entries, max_workers=30, timeout_s=35):
+    results = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(tmdb_search_one, e): e for e in entries}
+        try:
+            for fut in concurrent.futures.as_completed(futures, timeout=timeout_s):
+                name, data = fut.result()
+                if data:
+                    results[name] = data
+        except concurrent.futures.TimeoutError:
+            pass
+    return results
+
+
+def build_enrich_map(series, movies):
+    if not TMDB_KEY:
+        return {}
+
+    # Load existing canonical_titles for fast local lookup
+    canon_rows = sb('GET', 'canonical_titles?select=id,title,alt_titles,tmdb_id&limit=2000', prefer='')
+    title_to_id  = {}
+    tmdbid_to_id = {}
+    for row in (canon_rows or []):
+        key = norm(row.get('title', ''))
+        if key:
+            title_to_id[key] = row['id']
+        for alt in (row.get('alt_titles') or []):
+            if alt:
+                title_to_id[norm(alt)] = row['id']
+        if row.get('tmdb_id'):
+            tmdbid_to_id[row['tmdb_id']] = row['id']
+
+    enrich_map = {}
+    to_search  = []
+
+    for ch in series + movies:
+        n = norm(ch['name'])
+        if n in title_to_id:
+            enrich_map[ch['name']] = title_to_id[n]
+        else:
+            to_search.append((ch['name'], ch['content_type']))
+
+    if not to_search:
+        return enrich_map
+
+    # Cap at 400 titles to stay within 60s Vercel timeout
+    tmdb_results = parallel_tmdb_search(to_search[:400])
+
+    # Check which found tmdb_ids already exist in canonical_titles
+    new_tmdb_ids = {d['tmdb_id'] for d in tmdb_results.values() if d.get('tmdb_id')}
+    if new_tmdb_ids:
+        existing = sb(
+            'GET',
+            f'canonical_titles?tmdb_id=in.({",".join(map(str, new_tmdb_ids))})&select=id,tmdb_id',
+            prefer='',
+        )
+        for row in (existing or []):
+            tmdbid_to_id[row['tmdb_id']] = row['id']
+
+    to_insert   = []
+    provisional = {}
+
+    for name, data in tmdb_results.items():
+        tmdb_id = data.get('tmdb_id')
+        if not tmdb_id:
+            continue
+        if tmdb_id in tmdbid_to_id:
+            enrich_map[name] = tmdbid_to_id[tmdb_id]
+        else:
+            prefix = 'mo' if data['type'] == 'movie' else 'se'
+            new_id = f"tmdb-{prefix}-{tmdb_id}"
+            if new_id not in provisional.values():
+                to_insert.append({
+                    'id':             new_id,
+                    'slug':           new_id,
+                    'title':          data['title'],
+                    'original_title': data.get('original_title'),
+                    'tmdb_id':        tmdb_id,
+                    'type':           data['type'],
+                    'poster':         data.get('poster'),
+                    'backdrop':       data.get('backdrop'),
+                    'overview':       data.get('overview') or '',
+                    'rating':         data.get('rating'),
+                    'vote_count':     data.get('vote_count'),
+                    'popularity':     data.get('popularity'),
+                    'year':           data.get('year'),
+                    'genres':         data.get('genres') or [],
+                    'priority':       False,
+                })
+            provisional[name]       = new_id
+            tmdbid_to_id[tmdb_id]  = new_id
+
+    for i in range(0, len(to_insert), 100):
+        try:
+            sb(
+                'POST',
+                'canonical_titles?on_conflict=id',
+                to_insert[i:i+100],
+                prefer='resolution=merge-duplicates,return=minimal',
+            )
+        except Exception:
+            pass
+
+    enrich_map.update(provisional)
+    return enrich_map
+
+
+# ── Save channels ─────────────────────────────────────────────────────────────
+
+def save_channels(playlist_id, user_id, channels, enrich_map=None):
+    enrich_map = enrich_map or {}
+    inserted   = 0
     for i in range(0, len(channels), 300):
         batch = [
             {
@@ -360,11 +490,11 @@ def save_channels(playlist_id, user_id, channels):
                 'streams':      ch['streams'],
                 'group_name':   ch['group'],
                 'logo_url':     ch['logo'] or None,
-                'canonical_id': None,
+                'canonical_id': enrich_map.get(ch['name']),
                 'streaming':    ch['streaming'],
                 'content_type': ch['content_type'],
                 'seasons':      ch['seasons'],
-                'enriched':     False,
+                'enriched':     ch['name'] in enrich_map,
             }
             for ch in channels[i:i+300]
         ]
@@ -373,7 +503,7 @@ def save_channels(playlist_id, user_id, channels):
     return inserted
 
 
-# ── Fetch M3U ──────────────────────────────────────────────────────────
+# ── Fetch M3U ─────────────────────────────────────────────────────────────────
 
 IPTV_HEADERS_DIRECT = [
     {'User-Agent': 'Lavf/58.76.100', 'Accept': '*/*', 'Connection': 'keep-alive'},
@@ -401,7 +531,7 @@ def fetch_via_edge_proxy(m3u_url):
                     "Provedor IPTV bloqueou o acesso (HTTP 403/401). "
                     "Baixe o arquivo .m3u manualmente e use o modo Arquivo."
                 )
-            raise Exception(result.get('error', 'Edge proxy n\u00e3o retornou conte\u00fado M3U v\u00e1lido'))
+            raise Exception(result.get('error', 'Edge proxy não retornou conteúdo M3U válido'))
     except urllib.error.HTTPError as e:
         body = e.read().decode()[:300]
         raise Exception(f"Edge proxy HTTP {e.code}: {body}")
@@ -416,7 +546,7 @@ def fetch_m3u_direct(url):
                 content = resp.read().decode('utf-8', errors='replace')
                 if content.strip().startswith('#EXTM3U') or '#EXTINF' in content[:500]:
                     return content, 'direct'
-                last_error = Exception('Resposta n\u00e3o \u00e9 M3U v\u00e1lido')
+                last_error = Exception('Resposta não é M3U válido')
         except urllib.error.HTTPError as e:
             last_error = Exception(f'HTTP {e.code}: {e.reason}')
             if e.code in (401, 403):
@@ -426,7 +556,7 @@ def fetch_m3u_direct(url):
                 )
         except Exception as e:
             last_error = e
-    raise last_error or Exception('N\u00e3o foi poss\u00edvel baixar a lista M3U')
+    raise last_error or Exception('Não foi possível baixar a lista M3U')
 
 
 def fetch_m3u_url(url):
@@ -437,7 +567,6 @@ def fetch_m3u_url(url):
         proxy_msg = str(proxy_err)
         if 'bloqueou' in proxy_msg or '403' in proxy_msg or '401' in proxy_msg or 'Arquivo' in proxy_msg:
             raise Exception(proxy_msg)
-        pass
     content, mode = fetch_m3u_direct(url)
     return content
 
@@ -479,15 +608,15 @@ class handler(BaseHTTPRequestHandler):
 
             pl_rows = sb('GET', f'playlists?id=eq.{playlist_id}&select=content_hash,user_id', prefer='')
             if not pl_rows:
-                return self._error(404, f'Playlist {playlist_id} n\u00e3o encontrada')
+                return self._error(404, f'Playlist {playlist_id} não encontrada')
             pl      = pl_rows[0]
             user_id = pl.get('user_id')
             if not user_id:
-                return self._error(400, 'user_id n\u00e3o encontrado na playlist')
+                return self._error(400, 'user_id não encontrado na playlist')
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {'status': 'processing'})
 
-            # ── MODO from_db ──
+            # ── MODO from_db ──────────────────────────────────────────────────
             if from_db:
                 all_raw = fetch_raw_channels_from_db(playlist_id)
 
@@ -507,18 +636,11 @@ class handler(BaseHTTPRequestHandler):
                 sb('DELETE', f'raw_channels?playlist_id=eq.{playlist_id}')
                 sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
 
-                result   = process_channels(raw_channels)
-                all_ch   = result['series'] + result['movies'] + result['live']
-                inserted = save_channels(playlist_id, user_id, all_ch)
-
-                enrichable = len(result['series']) + len(result['movies'])
-                if enrichable > 0:
-                    sb('POST', 'enrich_jobs', [{
-                        'playlist_id':     playlist_id,
-                        'status':          'pending',
-                        'total_count':     enrichable,
-                        'processed_count': 0,
-                    }])
+                result     = process_channels(raw_channels)
+                enrich_map = build_enrich_map(result['series'], result['movies'])
+                all_ch     = result['series'] + result['movies'] + result['live']
+                inserted   = save_channels(playlist_id, user_id, all_ch, enrich_map)
+                enriched   = len(enrich_map)
 
                 sb('PATCH', f'playlists?id=eq.{playlist_id}', {
                     'status':        'ready',
@@ -535,9 +657,10 @@ class handler(BaseHTTPRequestHandler):
                     'movies':   len(result['movies']),
                     'live':     len(result['live']),
                     'inserted': inserted,
+                    'enriched': enriched,
                 })
 
-            # ── MODO normal ──
+            # ── MODO normal ───────────────────────────────────────────────────
             if content_inline:
                 content = content_inline
             elif url:
@@ -559,21 +682,14 @@ class handler(BaseHTTPRequestHandler):
                 })
                 return self._json({'success': True, 'skipped': True, 'reason': 'content_unchanged'})
 
-            raw    = parse_m3u(content)
-            result = process_channels(raw)
-            all_ch = result['series'] + result['movies'] + result['live']
+            raw        = parse_m3u(content)
+            result     = process_channels(raw)
+            enrich_map = build_enrich_map(result['series'], result['movies'])
+            all_ch     = result['series'] + result['movies'] + result['live']
 
             sb('DELETE', f'channels?playlist_id=eq.{playlist_id}')
-            inserted = save_channels(playlist_id, user_id, all_ch)
-
-            enrichable = len(result['series']) + len(result['movies'])
-            if enrichable > 0:
-                sb('POST', 'enrich_jobs', [{
-                    'playlist_id':     playlist_id,
-                    'status':          'pending',
-                    'total_count':     enrichable,
-                    'processed_count': 0,
-                }])
+            inserted = save_channels(playlist_id, user_id, all_ch, enrich_map)
+            enriched = len(enrich_map)
 
             sb('PATCH', f'playlists?id=eq.{playlist_id}', {
                 'status':        'ready',
@@ -591,6 +707,7 @@ class handler(BaseHTTPRequestHandler):
                 'movies':   len(result['movies']),
                 'live':     len(result['live']),
                 'inserted': inserted,
+                'enriched': enriched,
             })
 
         except Exception as e:
