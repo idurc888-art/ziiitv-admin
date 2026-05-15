@@ -4,17 +4,15 @@ import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { supabase } from '../lib/supabase'
-import { normalizeStreams, parseMiniM3u, buildCatalogIndex, lookupChannel } from '../lib/m3uProcessor'
-import type { CatalogIndex } from '../lib/m3uProcessor'
+import { normalizeStreams, parseMiniM3u } from '../lib/m3uProcessor'
 import { Upload, Copy, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-type Phase = 'parsing' | 'processing' | 'linking' | 'saving' | 'generating' | ''
+type Phase = 'parsing' | 'processing' | 'saving' | 'generating' | ''
 
 const PHASE_LABEL: Record<Phase, string> = {
   parsing:    '📋 Lendo lista...',
   processing: '⚙️ Classificando canais, filmes e séries...',
-  linking:    '🔗 Vinculando ao catálogo TMDB existente...',
   saving:     '💾 Salvando no banco...',
   generating: '🎯 Gerando código...',
   '': '',
@@ -32,34 +30,6 @@ interface Stats {
 
 const MAX_FILE_MB = 500
 
-async function fetchCatalogIndex(onProgress?: (count: number) => void): Promise<CatalogIndex> {
-  const PAGE = 1000
-  let all: any[] = []
-  let from = 0
-  let timedOut = false
-
-  const fetchLoop = async (): Promise<CatalogIndex> => {
-    while (!timedOut) {
-      const { data, error } = await supabase
-        .from('canonical_titles')
-        .select('id, title, alt_titles, streaming')
-        .range(from, from + PAGE - 1)
-      if (error || !data || data.length === 0) break
-      all = all.concat(data)
-      onProgress?.(all.length)
-      if (data.length < PAGE) break
-      from += PAGE
-    }
-    return buildCatalogIndex(all)
-  }
-
-  // 20s timeout — returns whatever was collected so far
-  const timeoutRace = new Promise<CatalogIndex>(resolve =>
-    setTimeout(() => { timedOut = true; resolve(buildCatalogIndex(all)) }, 20000)
-  )
-
-  return Promise.race([fetchLoop(), timeoutRace])
-}
 
 export function UploadPlaylist() {
   const navigate  = useNavigate()
@@ -158,51 +128,19 @@ export function UploadPlaylist() {
 
         if (cancelledRef.current) { await handleCancel(); return }
 
-        // ── Vincula ao catálogo TMDB já existente no banco ────────────────────
-        // canonical_titles nunca são deletadas — acumulam a cada enriquecimento.
-        // Buscar aqui garante que listas novas herdem todo TMDB já processado.
-        addLog('Buscando catálogo TMDB existente (isso pode levar alguns segundos)...')
-        setPhase('linking')
-        setProgress(35)
-
-        const catalogIndex = await fetchCatalogIndex((count) => {
-          addLog(`📚 Catálogo: ${count.toLocaleString('pt-BR')} títulos carregados...`)
-        })
-        setProgress(38)
-        addLog(`Catálogo pronto: ${catalogIndex.raw.length} títulos. Iniciando vinculação...`)
-
-        // Async chunked linking — keeps UI responsive and shows live progress
-        const LINK_CHUNK = 2000
-        let linked = 0
-        const enrichedChannels: any[] = []
-
-        for (let i = 0; i < channels.length; i += LINK_CHUNK) {
-          if (cancelledRef.current) { await handleCancel(); return }
-          const chunk = channels.slice(i, i + LINK_CHUNK)
-          for (const ch of chunk) {
-            const canonicalId = lookupChannel(ch.name, ch.streaming, catalogIndex)
-            if (canonicalId) linked++
-            enrichedChannels.push({ ...ch, canonicalId })
-          }
-          const pct = Math.round((enrichedChannels.length / channels.length) * 100)
-          addLog(`🔗 Vinculando... ${enrichedChannels.length.toLocaleString('pt-BR')}/${channels.length.toLocaleString('pt-BR')} canais — ${linked} com TMDB (${pct}%)`)
-          setProgress(38 + Math.round((enrichedChannels.length / channels.length) * 4))
-          await new Promise(r => setTimeout(r, 0))
-        }
-        addLog(`✅ Vinculação concluída. ${linked} canais com TMDB associado.`)
-
-        if (cancelledRef.current) { await handleCancel(); return }
-
-        // ── Salva em batches de 1000 ──────────────────────────────────────────
-        addLog('Iniciando salvamento no banco de dados em lotes de 1000...')
+        // ── Salva em batches de 1000 (canonical_id=null — enriquecimento feito depois via Edge Function) ──
+        addLog(`Salvando ${channels.length.toLocaleString('pt-BR')} canais no banco (${Math.ceil(channels.length / 1000)} lotes)...`)
         setPhase('saving')
+        setProgress(35)
         const BATCH = 1000
         let inserted = 0
+        const totalBatches = Math.ceil(channels.length / BATCH)
 
-        for (let i = 0; i < enrichedChannels.length; i += BATCH) {
+        for (let i = 0; i < channels.length; i += BATCH) {
           if (cancelledRef.current) { await handleCancel(); return }
 
-          const batch = enrichedChannels.slice(i, i + BATCH).map(ch => ({
+          const batchNum = Math.floor(i / BATCH) + 1
+          const batch = channels.slice(i, i + BATCH).map(ch => ({
             playlist_id:  playlist.id,
             user_id:      user.id,
             name:         ch.name,
@@ -211,20 +149,19 @@ export function UploadPlaylist() {
             streaming:    ch.streaming,
             streams:      ch.streams,
             content_type: (ch.contentType === 'show' || ch.contentType === 'standup') ? 'series' : ch.contentType,
-            canonical_id: ch.canonicalId ?? null,
+            canonical_id: null,
             active:       true,
           }))
 
-          const batchNum = Math.floor(i / BATCH) + 1
-          const totalBatches = Math.ceil(enrichedChannels.length / BATCH)
-          addLog(`💾 Lote ${batchNum}/${totalBatches} — salvando ${batch.length} canais...`)
+          addLog(`💾 Lote ${batchNum}/${totalBatches} — ${batch.length} canais...`)
           const { error } = await (supabase as any).from('channels').insert(batch) as { error: { message: string } | null }
-          if (error) throw new Error(`Erro ao salvar canais: ${error.message}`)
+          if (error) throw new Error(`Lote ${batchNum}: ${error.message}`)
           inserted += batch.length
-          setProgress(40 + Math.round((inserted / enrichedChannels.length) * 45))
-          addLog(`✅ Lote ${batchNum}/${totalBatches} salvo. Total: ${inserted.toLocaleString('pt-BR')}/${enrichedChannels.length.toLocaleString('pt-BR')} canais`)
+          setProgress(35 + Math.round((inserted / channels.length) * 50))
+          addLog(`✅ Lote ${batchNum}/${totalBatches} — ${inserted.toLocaleString('pt-BR')}/${channels.length.toLocaleString('pt-BR')} canais salvos`)
         }
-        addLog(`Salvamento concluído com sucesso. Todos os ${enrichedChannels.length} canais inseridos.`)
+        addLog(`✅ Todos os ${channels.length.toLocaleString('pt-BR')} canais salvos. TMDB vinculado após upload.`)
+        const linked = 0
 
         // ── Marca playlist como pronta ────────────────────────────────────────
         await (supabase as any)
@@ -441,7 +378,7 @@ export function UploadPlaylist() {
                 { label: 'Séries agrupadas',   value: stats.series.toLocaleString('pt-BR'),    color: 'text-white' },
                 { label: 'Filmes',             value: stats.movies.toLocaleString('pt-BR'),    color: 'text-white' },
                 { label: 'TV ao vivo',         value: stats.live.toLocaleString('pt-BR'),      color: 'text-white' },
-                { label: 'TMDB vinculados',    value: stats.linked.toLocaleString('pt-BR'),    color: stats.linked > 0 ? 'text-yellow-400' : 'text-white' },
+                { label: 'TMDB (vinc. depois)', value: '—',                                    color: 'text-gray-500' },
                 { label: 'Descartados',        value: stats.discarded.toLocaleString('pt-BR'), color: stats.discarded > 0 ? 'text-yellow-400' : 'text-white' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-gray-800 rounded-lg p-3">
@@ -460,7 +397,7 @@ export function UploadPlaylist() {
                 {stats && (
                   <p className="text-sm text-gray-400">
                     {stats.series.toLocaleString('pt-BR')} séries · {stats.movies.toLocaleString('pt-BR')} filmes · {stats.live.toLocaleString('pt-BR')} TV ao vivo
-                    {stats.linked > 0 && ` · ${stats.linked.toLocaleString('pt-BR')} já com TMDB ✨`}
+                    {` · TMDB será vinculado em Playlists ✨`}
                   </p>
                 )}
               </div>
