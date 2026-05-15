@@ -123,7 +123,7 @@ export function LinkPage() {
       const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
       if (error) { setErrorMsg(error.message); setSubmitting(false); return }
       if (data.user) {
-        await supabase.from('users').upsert({ id: data.user.id, email: data.user.email, role: 'user' }, { onConflict: 'id' })
+        await supabase.from('users').upsert({ id: data.user.id, email: data.user.email, role: 'user' }, { onConflict: 'id', ignoreDuplicates: true })
       }
       if (!data.session) {
         setStep('login_confirm')

@@ -80,7 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (data.user) {
       await supabase.from('users').upsert(
         { id: data.user.id, email: data.user.email, role: 'user' },
-        { onConflict: 'id' }
+        { onConflict: 'id', ignoreDuplicates: true }
       )
     }
     return { error: null, needsConfirmation: !data.session }
