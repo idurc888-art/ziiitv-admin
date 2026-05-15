@@ -54,6 +54,40 @@ export interface RawChannel {
   logo: string | null
 }
 
+// ─── Parser M3U — cobre os 5 padrões de provedor ─────────────────────────────
+// Fix: \r?\n (Windows), lastIndexOf(',') (vírgula no título), regex genérica
+// (captura xui-id do P5), tvg-name tem prioridade sobre nome inline
+
+export function parseMiniM3u(text: string): RawChannel[] {
+  const channels: RawChannel[] = []
+  let current: Omit<RawChannel, 'url'> | null = null
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+
+    if (line.startsWith('#EXTINF:')) {
+      const attrs: Record<string, string> = {}
+      const attrRe = /([\w-]+)="([^"]*)"/g
+      let m: RegExpExecArray | null
+      while ((m = attrRe.exec(line)) !== null) attrs[m[1]] = m[2]
+
+      const commaIdx = line.lastIndexOf(',')
+      const inlineName = commaIdx >= 0 ? line.slice(commaIdx + 1).trim() : ''
+      const name = (attrs['tvg-name'] || inlineName).trim()
+
+      current = {
+        name,
+        group: attrs['group-title'] || null,
+        logo:  attrs['tvg-logo']    || null,
+      }
+    } else if (line && !line.startsWith('#') && current?.name) {
+      channels.push({ ...current, url: line })
+      current = null
+    }
+  }
+  return channels
+}
+
 // ─── Streamings conhecidos ────────────────────────────────────────────────────
 
 const STREAMING_MAP: [RegExp, string][] = [
@@ -179,6 +213,8 @@ export function getVersion(name: string, groupTitle: string): DubType {
 // ─── Parse série: extrai título + temporada + episódio ────────────────────────
 
 const EP_REGEX = /^(.+?)\s+S(\d{1,2})E(\d{1,4})/i
+// Bloqueia falso-positivo: "4x100: Correndo..." → NxN sem S/T não é episódio
+const FAKE_EP_REGEX = /^\d+x\d+[:\s]/
 
 export function parseSeriesEntry(name: string) {
   const match = name.match(EP_REGEX)
@@ -319,11 +355,11 @@ function detectH265(name: string): boolean {
 export function cleanChannelName(raw: string): string {
   return raw
     .replace(/\|{2,}[^|]+\|{2,}/g, '')
+    .replace(/\s*\[\d{2}:\d{2}\]/g, '')       // [16:00] horário (P5)
     .replace(/\[[^\]]*\]/g, '')               // remove tudo em [...] → qualidade, codec, [L], [D]
     .replace(/\{[^}]*\}/g, '')
     .replace(/\([^)]*\)/g, '')                // remove (2011), (US), etc.
     .replace(/\b(4K|UHD|2160[Pp]?|FHD|FULL[\s.-]?HD|1080[Pp]?|HD|720[Pp]?|SD|480[Pp]?|360[Pp]?|H\.?265|H\.?264|HEVC|AVC|HDR|SDR|VOD|LEG|DUB|DUBLADO|LEGENDADO|NACIONAL|ORIGINAL|PT-BR|BR|VIP|PREMIUM|PLUS|PACK)\b/gi, '')
-    // Remove prefixos numéricos "042 - " ou "CH 124 ", preservando números que fazem parte do nome
     .replace(/^\s*(?:CH|CANAL|TV)?\s*\d{1,4}\s*[-|.:_]\s*/gi, '')
     .replace(/\b(19|20)\d{2}\b/g, '')
     .replace(/\b(S|T|EP|PARTE|PART|VOL)\s*\d+\b/gi, '')
@@ -466,9 +502,8 @@ export function normalizeStreams(rawChannels: RawChannel[]): Channel[] {
       }
 
       if (!episode) {
-        // Fallback para não dropar: tenta achar número solto no final, senão EP001
         const lastNum = raw.name.match(/\s+(0*\d{1,3})(?:\s|$)/)
-        if (lastNum) {
+        if (lastNum && !FAKE_EP_REGEX.test(raw.name)) {
           episode = `EP${lastNum[1].padStart(3, '0')}`
           baseName = raw.name.slice(0, lastNum.index).trim()
         } else {

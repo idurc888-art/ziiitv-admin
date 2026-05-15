@@ -4,7 +4,7 @@ import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { supabase } from '../lib/supabase'
-import { normalizeStreams } from '../lib/m3uProcessor'
+import { normalizeStreams, parseMiniM3u } from '../lib/m3uProcessor'
 import { Upload, Copy, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -27,28 +27,6 @@ interface Stats {
 }
 
 const MAX_FILE_MB = 500
-
-function parseMiniM3u(text: string): Array<{ name: string; group: string | null; logo: string | null; url: string }> {
-  const channels: Array<{ name: string; group: string | null; logo: string | null; url: string }> = []
-  let current: { name: string; group: string | null; logo: string | null } | null = null
-  for (const raw of text.split('\n')) {
-    const line = raw.trim()
-    if (line.startsWith('#EXTINF:')) {
-      const nameM  = line.match(/,(.+)$/)
-      const groupM = line.match(/group-title="([^"]*)"/)
-      const logoM  = line.match(/tvg-logo="([^"]*)"/)
-      current = {
-        name:  nameM  ? nameM[1].trim() : '',
-        group: groupM ? groupM[1] : null,
-        logo:  logoM  ? logoM[1]  : null,
-      }
-    } else if (line && !line.startsWith('#') && current?.name) {
-      channels.push({ ...current, url: line })
-      current = null
-    }
-  }
-  return channels
-}
 
 export function UploadPlaylist() {
   const navigate  = useNavigate()
