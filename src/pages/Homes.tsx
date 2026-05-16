@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toast } from 'react-hot-toast'
+import { Header } from '../components/layout/Header'
 import {
   LayoutTemplate,
   Plus,
@@ -10,7 +11,8 @@ import {
   CheckCircle2,
   Circle,
   Copy,
-  Loader2
+  Loader2,
+  Eye,
 } from 'lucide-react'
 
 interface Home {
@@ -24,6 +26,7 @@ interface Home {
 }
 
 export function Homes() {
+  const navigate = useNavigate()
   const [homes, setHomes] = useState<Home[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -132,24 +135,20 @@ export function Homes() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <LayoutTemplate className="w-6 h-6 text-accent" />
-          <div>
-            <h1 className="text-xl font-bold text-text-primary">Home Builder</h1>
-            <p className="text-sm text-text-muted">Crie e gerencie as telas iniciais da TV</p>
-          </div>
-        </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nova Home
-        </button>
-      </div>
+    <div className="animate-in fade-in duration-500 space-y-6">
+      <Header
+        title="Homes"
+        description="Crie e gerencie as telas iniciais da TV"
+        action={
+          <button
+            onClick={openNew}
+            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nova Home
+          </button>
+        }
+      />
 
       {/* Lista */}
       {loading ? (
@@ -213,8 +212,15 @@ export function Homes() {
                     Ativar
                   </button>
                 )}
+                <button
+                  onClick={() => navigate(`/admin/preview?home_id=${h.id}`)}
+                  className="p-2 rounded-lg text-text-muted hover:bg-elevated hover:text-accent transition-colors"
+                  title="Preview na TV"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
                 <Link
-                  to={`/homes/${h.id}`}
+                  to={`/admin/homes/${h.id}`}
                   className="p-2 rounded-lg text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
                   title="Editar seções"
                 >

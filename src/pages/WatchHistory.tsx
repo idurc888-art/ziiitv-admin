@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Header } from '../components/layout/Header'
 import { Table } from '../components/ui/Table'
-import { Search, MonitorPlay } from 'lucide-react'
+import { Search, MonitorPlay, Tv2 } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatRelativeTime, formatDuration } from '../lib/utils'
 import { supabaseAdmin } from '../lib/supabase'
@@ -133,7 +133,17 @@ export function WatchHistory() {
           </div>
         }
       />
-      <Table data={filtered} columns={columns} loading={loading} />
+      {!loading && history.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-xl">
+          <Tv2 className="w-10 h-10 text-text-faint mb-4" />
+          <h3 className="text-text-primary font-medium mb-1">Nenhum histórico ainda</h3>
+          <p className="text-sm text-text-muted max-w-xs">
+            A TV ainda não enviou dados de visualização. Assista algo no app e os eventos aparecerão aqui.
+          </p>
+        </div>
+      ) : (
+        <Table data={filtered} columns={columns} loading={loading} />
+      )}
     </div>
   )
 }
