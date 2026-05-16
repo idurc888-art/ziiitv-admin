@@ -18,7 +18,6 @@ interface Playlist {
   processed_at: string | null
   created_at: string
   error_message: string | null
-  pairing_code?: string
 }
 
 interface PlaylistStats {
@@ -63,9 +62,10 @@ export function Playlists() {
   const navigate  = useNavigate()
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [statsMap,  setStatsMap]  = useState<Record<string, PlaylistStats>>({})
-  const [loading,   setLoading]   = useState(true)
-  const [deleting,  setDeleting]  = useState<string | null>(null)
-  const [copied,    setCopied]    = useState<string | null>(null)
+  const [loading,    setLoading]   = useState(true)
+  const [deleting,   setDeleting]  = useState<string | null>(null)
+  const [activeCode, setActiveCode] = useState<string | null>(null)
+  const [codeCopied, setCodeCopied] = useState(false)
 
   const loadPlaylists = useCallback(async () => {
     setLoading(true)
@@ -84,12 +84,8 @@ export function Playlists() {
           .order('created_at', { ascending: false }),
       ])
 
-      const activeCode = codes?.[0]?.code ?? undefined
-      const list: Playlist[] = (pls || []).map(pl => ({
-        ...pl,
-        pairing_code: activeCode,
-      }))
-
+      setActiveCode(codes?.[0]?.code ?? null)
+      const list: Playlist[] = (pls || []).map(pl => ({ ...pl }))
       setPlaylists(list)
 
       // Inicializa loading state para todas as playlists prontas
@@ -179,6 +175,34 @@ export function Playlists() {
         }
       />
 
+      {/* Código de pareamento da conta — único, no topo */}
+      {activeCode && (
+        <div className="flex items-center justify-between gap-4 p-4 bg-purple-500/10 border border-purple-500/25 rounded-xl">
+          <div className="flex items-center gap-3">
+            <Tv2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-text-primary">Código de pareamento da sua conta</p>
+              <p className="text-xs text-text-muted mt-0.5">
+                Digite este código na TV para vincular todas as suas playlists ao dispositivo
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(activeCode)
+              setCodeCopied(true)
+              setTimeout(() => setCodeCopied(false), 2000)
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-lg font-mono text-sm font-bold hover:bg-purple-500/25 transition-colors flex-shrink-0"
+          >
+            {activeCode}
+            {codeCopied
+              ? <Check className="w-3.5 h-3.5 text-green-400" />
+              : <Copy className="w-3.5 h-3.5 opacity-60" />}
+          </button>
+        </div>
+      )}
+
       {/* Aviso TMDB */}
       <div className="flex gap-3 p-4 bg-accent/5 border border-accent/20 rounded-xl">
         <Info className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
@@ -217,22 +241,6 @@ export function Playlists() {
                       <span className={`px-2 py-0.5 text-xs rounded-full border font-medium ${statusColor(pl.status)}`}>
                         {statusLabel(pl.status)}
                       </span>
-                      {pl.pairing_code && (
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(pl.pairing_code!)
-                            setCopied(pl.id)
-                            setTimeout(() => setCopied(null), 2000)
-                          }}
-                          title="Copiar código para a TV"
-                          className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-full font-mono text-xs font-bold hover:bg-purple-500/25 transition-colors"
-                        >
-                          {pl.pairing_code}
-                          {copied === pl.id
-                            ? <Check className="w-3 h-3 text-green-400" />
-                            : <Copy className="w-3 h-3 opacity-60" />}
-                        </button>
-                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
                       <span className="flex items-center gap-1">
