@@ -3,7 +3,7 @@ import { Header } from '../components/layout/Header'
 import { Stat } from '../components/ui/Stat'
 import { Card } from '../components/ui/Card'
 import { WatchActivityChart } from '../components/charts/WatchActivityChart'
-import { Users, List, Radio, Clock, PlayCircle } from 'lucide-react'
+import { Users, List, Radio, Clock, PlayCircle, Sparkles, AlertCircle } from 'lucide-react'
 import { formatRelativeTime, formatDuration } from '../lib/utils'
 import { supabaseAdmin } from '../lib/supabase'
 
@@ -14,6 +14,8 @@ interface Stats {
   playlistsToday: number
   channels: number
   watchHoursToday: number
+  canonicalTitles: number
+  enrichQueue: number
 }
 
 interface ActivityItem {
@@ -31,7 +33,7 @@ interface ChartPoint {
 
 export function Dashboard() {
   const [loading, setLoading]     = useState(true)
-  const [stats, setStats]         = useState<Stats>({ users: 0, playlistsToday: 0, channels: 0, watchHoursToday: 0 })
+  const [stats, setStats]         = useState<Stats>({ users: 0, playlistsToday: 0, channels: 0, watchHoursToday: 0, canonicalTitles: 0, enrichQueue: 0 })
   const [chartData, setChartData] = useState<ChartPoint[]>([])
   const [activity, setActivity]   = useState<ActivityItem[]>([])
 
@@ -52,6 +54,8 @@ export function Dashboard() {
         watchTodayRes,
         watchChartRes,
         recentRes,
+        canonicalRes,
+        enrichQueueRes,
       ] = await Promise.all([
         supabaseAdmin.from('users').select('*', { count: 'exact', head: true }),
         supabaseAdmin.from('playlists').select('*', { count: 'exact', head: true })
@@ -61,6 +65,9 @@ export function Dashboard() {
         supabaseAdmin.from('watch_events').select('watched_at, duration_seconds').gte('watched_at', sevenDaysISO),
         supabaseAdmin.from('watch_events').select('id, channel_name, user_id, duration_seconds, watched_at')
           .order('watched_at', { ascending: false }).limit(5),
+        supabaseAdmin.from('canonical_titles').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('channels').select('*', { count: 'exact', head: true })
+          .is('canonical_id', null).in('content_type', ['series', 'movie']),
       ])
 
       // Stats
@@ -71,6 +78,8 @@ export function Dashboard() {
         playlistsToday:  playlistsTodayRes.count ?? 0,
         channels:        channelsRes.count ?? 0,
         watchHoursToday: Math.round((watchSecondsToday / 3600) * 10) / 10,
+        canonicalTitles: canonicalRes.count ?? 0,
+        enrichQueue:     enrichQueueRes.count ?? 0,
       })
 
       // Chart: build 7-day buckets
@@ -119,17 +128,17 @@ export function Dashboard() {
         description="Visão geral do sistema e atividade nas últimas 24 horas"
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         <Stat
           tone="pink"
-          label="Total de Usuários"
+          label="Usuários"
           value={stats.users}
           icon={<Users className="w-5 h-5" />}
           loading={loading}
         />
         <Stat
           tone="aqua"
-          label="Playlists Processadas (Hoje)"
+          label="Playlists Hoje"
           value={stats.playlistsToday}
           icon={<List className="w-5 h-5" />}
           loading={loading}
@@ -143,9 +152,23 @@ export function Dashboard() {
         />
         <Stat
           tone="pink"
-          label="Horas Assistidas (Hoje)"
+          label="Horas Assistidas"
           value={stats.watchHoursToday}
           icon={<Clock className="w-5 h-5" />}
+          loading={loading}
+        />
+        <Stat
+          tone="neon"
+          label="Títulos TMDB"
+          value={stats.canonicalTitles.toLocaleString('pt-BR')}
+          icon={<Sparkles className="w-5 h-5" />}
+          loading={loading}
+        />
+        <Stat
+          tone="pink"
+          label="Fila Enriquecimento"
+          value={stats.enrichQueue.toLocaleString('pt-BR')}
+          icon={<AlertCircle className="w-5 h-5" />}
           loading={loading}
         />
       </div>
