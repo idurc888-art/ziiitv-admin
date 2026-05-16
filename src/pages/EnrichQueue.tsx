@@ -256,7 +256,11 @@ export function EnrichQueue() {
     const year = (result.release_date || result.first_air_date || '').slice(0, 4)
     const slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     const stream = ch.content_type === 'series' ? 'serie' : 'filme'
-    const canonicalId = `${stream}-${slug}`
+
+    // Se o slug j\u00e1 existe com id diferente (ex: serie- vs filme-), reutiliza o id existente
+    const { data: existing } = await supabase
+      .from('canonical_titles').select('id').eq('slug', slug).maybeSingle()
+    const canonicalId = existing?.id ?? `${stream}-${slug}`
 
     // --- Deep Fetch ---
     const details = await getDetailedTMDBData(result.id, result.media_type === 'tv' ? 'series' : 'movie')
