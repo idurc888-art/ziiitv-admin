@@ -79,7 +79,7 @@ export function Playlists() {
           .select('id, url_original, status, channel_count, processed_at, created_at, error_message')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
-        supabase.from('pair_tokens')
+        supabase.from('pairing_codes')
           .select('code, playlist_id')
           .eq('user_id', user.id)
           .gt('expires_at', new Date().toISOString()),

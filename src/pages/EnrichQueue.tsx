@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { supabase, supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { getDetailedTMDBData } from '../lib/tmdbFetch'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -183,7 +183,7 @@ export function EnrichQueue() {
         .eq('slug', slug)
         .maybeSingle()
       if (existing?.id) {
-        await supabaseAdmin.from('channels').update({ canonical_id: existing.id }).eq('id', ch.id)
+        await supabase.from('channels').update({ canonical_id: existing.id }).eq('id', ch.id)
         setAutoLinkedItems(q => [...q, { channel: ch, tmdbResult: { title: searchName } as any, score: 1 }])
         linked++
         setStats({ linked, review, skipped })
@@ -191,7 +191,6 @@ export function EnrichQueue() {
       }
       // ──────────────────────────────────────────────────────────────────
 
-      const searchName = cleanForSearch(ch.name)
       if (!searchName || searchName.length < 2) { skipped++; continue }
 
       try {
@@ -262,7 +261,7 @@ export function EnrichQueue() {
     // --- Deep Fetch ---
     const details = await getDetailedTMDBData(result.id, result.media_type === 'tv' ? 'series' : 'movie')
 
-    const { error: ctErr } = await supabaseAdmin.from('canonical_titles').upsert({
+    const { error: ctErr } = await supabase.from('canonical_titles').upsert({
       id: canonicalId, slug, title,
       streaming: stream,
       type: result.media_type === 'tv' ? 'series' : 'movie',
@@ -276,7 +275,7 @@ export function EnrichQueue() {
 
     if (ctErr) throw ctErr
 
-    const { error: chErr, count } = await supabaseAdmin.from('channels').update({
+    const { error: chErr, count } = await supabase.from('channels').update({
       canonical_id: canonicalId,
       content_type: result.media_type === 'tv' ? 'series' : 'movie',
     }, { count: 'exact' }).eq('id', ch.id)

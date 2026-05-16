@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
 import { Sparkles, Zap, CheckCircle, Clock, List } from 'lucide-react'
-import { supabase, supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { toast } from 'react-hot-toast'
 
 interface PlaylistEnrich {
@@ -48,12 +48,12 @@ export function EnrichIndex() {
 
       await Promise.all(list.map(async (pl) => {
         const [totalRes, enrichedRes] = await Promise.all([
-          supabaseAdmin
+          supabase
             .from('channels')
             .select('*', { count: 'exact', head: true })
             .eq('playlist_id', pl.id)
             .in('content_type', ['series', 'movie']),
-          supabaseAdmin
+          supabase
             .from('channels')
             .select('*', { count: 'exact', head: true })
             .eq('playlist_id', pl.id)
