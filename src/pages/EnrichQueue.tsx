@@ -217,7 +217,11 @@ export function EnrichQueue() {
         } else {
           skipped++
         }
-      } catch {
+      } catch (err: any) {
+        console.error(`[EnrichQueue] "${ch.name}":`, err?.message || err)
+        if (linked === 0 && skipped === 0 && review === 0) {
+          toast.error(`Erro: ${err?.message || 'falha na API'}`, { duration: 6000 })
+        }
         skipped++
       }
 
@@ -241,7 +245,7 @@ export function EnrichQueue() {
     // --- Deep Fetch ---
     const details = await getDetailedTMDBData(result.id, result.media_type === 'tv' ? 'series' : 'movie')
 
-    const { error: ctErr } = await supabase.from('canonical_titles').upsert({
+    const { error: ctErr } = await supabaseAdmin.from('canonical_titles').upsert({
       id: canonicalId, slug, title,
       streaming: stream,
       type: result.media_type === 'tv' ? 'series' : 'movie',
@@ -255,13 +259,13 @@ export function EnrichQueue() {
 
     if (ctErr) throw ctErr
 
-    const { error: chErr, count } = await supabase.from('channels').update({
+    const { error: chErr, count } = await supabaseAdmin.from('channels').update({
       canonical_id: canonicalId,
       content_type: result.media_type === 'tv' ? 'series' : 'movie',
     }, { count: 'exact' }).eq('id', ch.id)
 
     if (chErr) throw chErr
-    if (!count) throw new Error(`Canal "${ch.name}" não foi atualizado — verifique RLS`)
+    if (!count) throw new Error(`Canal "${ch.name}" não atualizado — RLS ou id inválido`)
   }
 
   const approveReview = async (item: ReviewItem) => {
