@@ -206,10 +206,12 @@ export function UploadPlaylist() {
         addLog('Processamento em nuvem finalizado.')
       }
 
-      // ── Gera código de pareamento ─────────────────────────────────────────────
+      // ── Gera código de pareamento vinculado a ESTA playlist ──────────────────
       addLog('Gerando código de pareamento para acesso na TV...')
       setPhase('generating')
-      const { data: codeData, error: codeErr } = await supabase.functions.invoke('generate-code')
+      const { data: codeData, error: codeErr } = await supabase.functions.invoke('generate-code', {
+        body: { playlist_id: playlistIdRef.current },
+      })
       if (codeErr) throw codeErr
       setCode(codeData.code)
       setProgress(100)

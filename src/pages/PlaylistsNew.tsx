@@ -64,8 +64,8 @@ export function Playlists() {
   const [statsMap,  setStatsMap]  = useState<Record<string, PlaylistStats>>({})
   const [loading,    setLoading]   = useState(true)
   const [deleting,   setDeleting]  = useState<string | null>(null)
-  const [activeCode, setActiveCode] = useState<string | null>(null)
-  const [codeCopied, setCodeCopied] = useState(false)
+  const [codesMap,   setCodesMap]  = useState<Record<string, string>>({})
+  const [codeCopied, setCodeCopied] = useState<string | null>(null)
 
   const loadPlaylists = useCallback(async () => {
     setLoading(true)
@@ -79,12 +79,18 @@ export function Playlists() {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         supabase.from('pairing_codes')
-          .select('code, created_at')
+          .select('code, playlist_id')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
+          .gt('expires_at', new Date().toISOString()),
       ])
 
-      setActiveCode(codes?.[0]?.code ?? null)
+      // Mapeia playlist_id → código
+      const map: Record<string, string> = {}
+      for (const c of (codes || [])) {
+        if (c.playlist_id) map[c.playlist_id] = c.code
+      }
+      setCodesMap(map)
+
       const list: Playlist[] = (pls || []).map(pl => ({ ...pl }))
       setPlaylists(list)
 
@@ -175,34 +181,6 @@ export function Playlists() {
         }
       />
 
-      {/* Código de pareamento da conta — único, no topo */}
-      {activeCode && (
-        <div className="flex items-center justify-between gap-4 p-4 bg-purple-500/10 border border-purple-500/25 rounded-xl">
-          <div className="flex items-center gap-3">
-            <Tv2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-text-primary">Código de pareamento da sua conta</p>
-              <p className="text-xs text-text-muted mt-0.5">
-                Digite este código na TV para vincular todas as suas playlists ao dispositivo
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(activeCode)
-              setCodeCopied(true)
-              setTimeout(() => setCodeCopied(false), 2000)
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-lg font-mono text-sm font-bold hover:bg-purple-500/25 transition-colors flex-shrink-0"
-          >
-            {activeCode}
-            {codeCopied
-              ? <Check className="w-3.5 h-3.5 text-green-400" />
-              : <Copy className="w-3.5 h-3.5 opacity-60" />}
-          </button>
-        </div>
-      )}
-
       {/* Aviso TMDB */}
       <div className="flex gap-3 p-4 bg-accent/5 border border-accent/20 rounded-xl">
         <Info className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
@@ -227,6 +205,7 @@ export function Playlists() {
           {playlists.map(pl => {
             const st = statsMap[pl.id]
             const enrichPct = st && st.total > 0 ? Math.round((st.enriched / st.total) * 100) : 0
+            const plCode = codesMap[pl.id]
 
             return (
               <Card key={pl.id} className="overflow-hidden">
@@ -241,6 +220,23 @@ export function Playlists() {
                       <span className={`px-2 py-0.5 text-xs rounded-full border font-medium ${statusColor(pl.status)}`}>
                         {statusLabel(pl.status)}
                       </span>
+                      {plCode && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(plCode)
+                            setCodeCopied(pl.id)
+                            setTimeout(() => setCodeCopied(null), 2000)
+                          }}
+                          title="Copiar código — digitar na TV para carregar esta lista"
+                          className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-full font-mono text-xs font-bold hover:bg-purple-500/25 transition-colors"
+                        >
+                          <Tv2 className="w-3 h-3 opacity-70" />
+                          {plCode}
+                          {codeCopied === pl.id
+                            ? <Check className="w-3 h-3 text-green-400" />
+                            : <Copy className="w-3 h-3 opacity-60" />}
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
                       <span className="flex items-center gap-1">

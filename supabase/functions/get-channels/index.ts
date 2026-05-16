@@ -34,7 +34,7 @@ serve(async (req) => {
     // Valida código
     const { data: pairing, error: pairingError } = await supabase
       .from('pairing_codes')
-      .select('user_id, expires_at')
+      .select('user_id, expires_at, playlist_id')
       .eq('code', code)
       .single()
 
@@ -81,12 +81,18 @@ serve(async (req) => {
       )
     `
 
-    const baseQuery = () =>
-      supabase
+    const baseQuery = () => {
+      let q = supabase
         .from('channels')
         .select(SELECT_FIELDS)
         .eq('user_id', pairing.user_id)
         .eq('active', true)
+      // Se o código for por playlist, filtra só canais daquela playlist
+      if (pairing.playlist_id) {
+        q = q.eq('playlist_id', pairing.playlist_id)
+      }
+      return q
+    }
 
     // ── 1. Canais TMDB-enriched (canonical_id preenchido) — todos ────────────
     const enrichedChannels: any[] = []
