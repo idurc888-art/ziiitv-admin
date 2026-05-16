@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, type CSSProperties } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 type Step = 'loading' | 'type_token' | 'login' | 'email_sent' | 'login_confirm' | 'form' | 'success' | 'expired' | 'error'
@@ -19,6 +19,7 @@ export function LinkPage() {
   const token = params.get('token') ?? ''
 
   const [step, setStep]         = useState<Step>(token ? 'loading' : 'type_token')
+  const navigate = useNavigate()
   const [mode, setMode]         = useState<Mode>('m3u')
   const [deviceId, setDeviceId] = useState('')
   const [userId, setUserId]     = useState('')
@@ -83,6 +84,13 @@ export function LinkPage() {
     })
     return () => subscription.unsubscribe()
   }, [step])
+
+  // Redireciona para o painel do cliente 2s após vincular
+  useEffect(() => {
+    if (step !== 'success') return
+    const t = setTimeout(() => navigate('/client'), 2000)
+    return () => clearTimeout(t)
+  }, [step, navigate])
 
   async function handleGoogleLogin() {
     await supabase.auth.signInWithOAuth({
@@ -180,31 +188,7 @@ export function LinkPage() {
       return
     }
 
-    // 2. Persiste em tv_sessions
-    if (deviceId) {
-      await supabase
-        .from('tv_sessions')
-        .upsert({
-          device_id: deviceId,
-          playlist_url: playlistUrl,
-          playlist_type: playlistType,
-          user_id: userId || null,
-          ...(mode === 'xtream' ? { xtream_host: host.trim(), xtream_user: user.trim(), xtream_pass: pass.trim() } : {}),
-          last_seen_at: new Date().toISOString(),
-        }, { onConflict: 'device_id' })
-    }
-
-    // 3. Enriquecimento TMDB em background (fire-and-forget)
-    supabase.functions.invoke('process-playlist', {
-      body: {
-        device_id:     deviceId,
-        user_id:       userId || null,
-        playlist_url:  playlistUrl,
-        playlist_type: playlistType,
-        ...(mode === 'xtream' ? { xtream_host: host.trim(), xtream_user: user.trim(), xtream_pass: pass.trim() } : {}),
-      },
-    }).catch(() => {})
-
+    // tv_sessions é atualizado pelo DB trigger on_pair_token_linked
     setStep('success')
   }
 
@@ -459,8 +443,12 @@ export function LinkPage() {
             <div>
               <div style={{ fontSize: 22, fontWeight: 700, color: '#4ade80', marginBottom: 8 }}>TV vinculada!</div>
               <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
-                Sua lista foi configurada com sucesso.<br />Pode fechar esta página e voltar para a TV.
+                Sua lista foi configurada. Redirecionando para seu painel...
               </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>
+              <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: '#4ade80', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              Abrindo painel do cliente...
             </div>
           </div>
         )}
