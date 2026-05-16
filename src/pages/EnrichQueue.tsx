@@ -174,6 +174,23 @@ export function EnrichQueue() {
       const ch = channels[i]
       setProgress(i + 1)
 
+      // ── Tenta linkar direto pelo slug sem chamar TMDB ──────────────────
+      const searchName = cleanForSearch(ch.name)
+      const slug = searchName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const { data: existing } = await supabase
+        .from('canonical_titles')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle()
+      if (existing?.id) {
+        await supabaseAdmin.from('channels').update({ canonical_id: existing.id }).eq('id', ch.id)
+        setAutoLinkedItems(q => [...q, { channel: ch, tmdbResult: { title: searchName } as any, score: 1 }])
+        linked++
+        setStats({ linked, review, skipped })
+        continue
+      }
+      // ──────────────────────────────────────────────────────────────────
+
       const searchName = cleanForSearch(ch.name)
       if (!searchName || searchName.length < 2) { skipped++; continue }
 
