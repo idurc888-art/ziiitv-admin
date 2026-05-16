@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { supabase } from '../lib/supabase'
 import {
   Trash2, Calendar, CheckCircle, XCircle, Clock,
-  Eye, Clapperboard, Film, Tv2, Sparkles, Info, Copy, Check,
+  Eye, Clapperboard, Film, Tv2, Sparkles, Info, Copy, Check, Upload, Zap,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -171,6 +171,12 @@ export function Playlists() {
       <Header
         title="Playlists"
         description={`${playlists.length} playlist${playlists.length !== 1 ? 's' : ''} cadastrada${playlists.length !== 1 ? 's' : ''}`}
+        action={
+          <Button onClick={() => navigate('/admin/upload')}>
+            <Upload className="w-3.5 h-3.5 mr-1.5" />
+            Nova Playlist
+          </Button>
+        }
       />
 
       {/* Aviso TMDB */}
@@ -243,9 +249,14 @@ export function Playlists() {
                   {/* Ações */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {pl.status === 'ready' && (
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/playlists/${pl.id}`)}>
-                        <Eye className="w-3.5 h-3.5 mr-1" /> Ver canais
-                      </Button>
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/playlists/${pl.id}`)}>
+                          <Eye className="w-3.5 h-3.5 mr-1" /> Ver canais
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/enrich/${pl.id}`)}>
+                          <Zap className="w-3.5 h-3.5 mr-1" /> Enriquecer
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="danger"

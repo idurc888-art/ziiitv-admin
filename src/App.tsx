@@ -19,6 +19,7 @@ import { WatchHistory } from './pages/WatchHistory'
 import { UploadPlaylist } from './pages/UploadPlaylist'
 import { ChannelDetail } from './pages/ChannelDetail'
 import { EnrichQueue } from './pages/EnrichQueue'
+import { EnrichIndex } from './pages/EnrichIndex'
 import { LinkPage } from './pages/LinkPage'
 import { Homes } from './pages/Homes'
 import { HomeEditor } from './pages/HomeEditor'
@@ -87,6 +88,7 @@ export function App() {
                 <Route path="/admin/playlists/:id" element={<PlaylistChannels />} />
                 <Route path="/admin/channels" element={<Channels />} />
                 <Route path="/admin/channels/:id" element={<ChannelDetail />} />
+                <Route path="/admin/enrich" element={<EnrichIndex />} />
                 <Route path="/admin/enrich/:id" element={<EnrichQueue />} />
                 <Route path="/admin/watch-history" element={<WatchHistory />} />
               </Route>
