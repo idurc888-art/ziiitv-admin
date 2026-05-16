@@ -69,6 +69,7 @@ export function App() {
           <Route path="/unauthorized" element={<Unauthorized />} />
           <Route path="/link" element={<LinkPage />} />
           
+          <Route path="*" element={<Navigate to="/" replace />} />
           <Route element={<ProtectedRoute />}>
             {/* Raiz: redireciona para /admin ou /client conforme o tipo */}
             <Route path="/" element={<RootRedirect />} />
