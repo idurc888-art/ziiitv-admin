@@ -10,33 +10,40 @@ import {
   Radio,
   History,
   LogOut,
-  Upload,
   Eye,
   LayoutTemplate,
+  Sparkles,
+  Link2,
 } from 'lucide-react'
 
 const ADMIN_GROUPS = [
   {
-    label: 'Visão geral',
+    label: 'Visão Geral',
     items: [
-      { to: '/admin',        icon: LayoutDashboard, label: 'Dashboard', end: true },
-      { to: '/admin/preview', icon: Eye,             label: 'Preview Canais' },
+      { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
     ],
   },
   {
-    label: 'Conteúdo',
+    label: 'Biblioteca',
     items: [
-      { to: '/admin/upload',    icon: Upload,         label: 'Upload Playlist' },
-      { to: '/admin/playlists', icon: List,           label: 'Playlists' },
-      { to: '/admin/channels',  icon: Radio,          label: 'Canais' },
-      { to: '/admin/homes',     icon: LayoutTemplate, label: 'Home Builder' },
+      { to: '/admin/playlists',  icon: List,      label: 'Playlists' },
+      { to: '/admin/channels',   icon: Radio,     label: 'Canais' },
+      { to: '/admin/enrich',     icon: Sparkles,  label: 'Enriquecimento' },
     ],
   },
   {
-    label: 'Gestão',
+    label: 'TV',
+    items: [
+      { to: '/admin/homes',    icon: LayoutTemplate, label: 'Homes' },
+      { to: '/admin/preview',  icon: Eye,            label: 'Preview' },
+      { to: '/link',           icon: Link2,          label: 'Vincular TV' },
+    ],
+  },
+  {
+    label: 'Sistema',
     items: [
       { to: '/admin/users',         icon: Users,   label: 'Usuários' },
-      { to: '/admin/watch-history', icon: History, label: 'Watch History' },
+      { to: '/admin/watch-history', icon: History, label: 'Histórico' },
     ],
   },
 ]
