@@ -62,10 +62,11 @@ export function Playlists() {
   const navigate  = useNavigate()
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [statsMap,  setStatsMap]  = useState<Record<string, PlaylistStats>>({})
-  const [loading,    setLoading]   = useState(true)
-  const [deleting,   setDeleting]  = useState<string | null>(null)
-  const [codesMap,   setCodesMap]  = useState<Record<string, string>>({})
-  const [codeCopied, setCodeCopied] = useState<string | null>(null)
+  const [loading,       setLoading]      = useState(true)
+  const [deleting,      setDeleting]     = useState<string | null>(null)
+  const [codesMap,      setCodesMap]     = useState<Record<string, string>>({})
+  const [codeCopied,    setCodeCopied]   = useState<string | null>(null)
+  const [generatingCode, setGeneratingCode] = useState<string | null>(null)
 
   const loadPlaylists = useCallback(async () => {
     setLoading(true)
@@ -136,6 +137,22 @@ export function Playlists() {
   }
 
   useEffect(() => { loadPlaylists() }, [loadPlaylists])
+
+  const handleGenerateCode = async (playlistId: string) => {
+    setGeneratingCode(playlistId)
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-code', {
+        body: { playlist_id: playlistId },
+      })
+      if (error) throw error
+      setCodesMap(prev => ({ ...prev, [playlistId]: data.code }))
+      toast.success(`Código gerado: ${data.code}`)
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao gerar código')
+    } finally {
+      setGeneratingCode(null)
+    }
+  }
 
   const handleDelete = async (playlistId: string) => {
     if (!confirm('Deletar playlist? Remove TODOS os canais associados. Não pode ser desfeito!')) return
@@ -260,6 +277,19 @@ export function Playlists() {
                         <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/enrich/${pl.id}`)}>
                           <Zap className="w-3.5 h-3.5 mr-1" /> Enriquecer
                         </Button>
+                        {!plCode && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleGenerateCode(pl.id)}
+                            disabled={generatingCode === pl.id}
+                          >
+                            {generatingCode === pl.id
+                              ? <Clock className="w-3.5 h-3.5 mr-1 animate-spin" />
+                              : <Tv2 className="w-3.5 h-3.5 mr-1" />}
+                            {generatingCode === pl.id ? 'Gerando...' : 'Gerar código TV'}
+                          </Button>
+                        )}
                       </>
                     )}
                     <Button
