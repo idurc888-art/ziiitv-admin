@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { supabase, supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { toast } from 'react-hot-toast'
 import {
   ArrowLeft, Plus, GripVertical, Trash2, Pencil,
@@ -176,7 +176,7 @@ export function HomeEditor() {
   }, [])
 
   const fetchXtreamPlaylists = useCallback(async () => {
-    const { data } = await supabaseAdmin
+    const { data } = await supabase
       .from('playlists')
       .select('id, url_original, last_synced_at, content_count, presentation_mode, home_id')
       .ilike('url_original', '%get.php?username=%')
@@ -188,8 +188,7 @@ export function HomeEditor() {
 
   const fetchXtreamGroups = useCallback(async (pid: string) => {
     setXtreamLoading(true)
-    // supabaseAdmin bypassa o RLS (playlist_content pertence ao usuário da TV, não ao admin)
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('playlist_content')
       .select('group_title, content_type, playlist_id')
       .eq('playlist_id', pid)
@@ -285,7 +284,7 @@ export function HomeEditor() {
   async function togglePresentationMode(playlist: XtreamPlaylist) {
     setTogglingMode(true)
     const next = playlist.presentation_mode === 'curated' ? 'auto' : 'curated'
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('playlists')
       .update({ presentation_mode: next })
       .eq('id', playlist.id)
@@ -299,7 +298,7 @@ export function HomeEditor() {
   async function assignHomeToPlaylist(playlist: XtreamPlaylist) {
     setAssigningHome(true)
     const alreadyLinked = playlist.home_id === id
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('playlists')
       .update({ home_id: alreadyLinked ? null : id })
       .eq('id', playlist.id)
