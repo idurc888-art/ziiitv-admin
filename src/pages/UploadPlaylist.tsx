@@ -220,18 +220,16 @@ export function UploadPlaylist() {
         setPhase('parsing')
         setProgress(5)
 
-        const base = `${xtream.host}/player_api.php?username=${xtream.username}&password=${xtream.password}`
-
         addLog('Buscando filmes, séries e canais ao vivo...')
-        const [vodRes, seriesRes, liveRes] = await Promise.all([
-          fetch(`${base}&action=get_vod_streams`).then(r => r.json()).catch(() => []),
-          fetch(`${base}&action=get_series`).then(r => r.json()).catch(() => []),
-          fetch(`${base}&action=get_live_streams`).then(r => r.json()).catch(() => []),
-        ])
+        const { data: xtreamData, error: xtreamErr } = await supabase.functions.invoke('fetch-xtream', {
+          body: { host: xtream.host, username: xtream.username, password: xtream.password },
+        })
+        if (xtreamErr) throw new Error(xtreamErr.message)
+        if (!xtreamData?.success) throw new Error(xtreamData?.error || 'Erro ao conectar no servidor Xtream')
 
-        const vod: any[]    = Array.isArray(vodRes)    ? vodRes    : []
-        const series: any[] = Array.isArray(seriesRes) ? seriesRes : []
-        const live: any[]   = Array.isArray(liveRes)   ? liveRes   : []
+        const vod: any[]    = xtreamData.vod    ?? []
+        const series: any[] = xtreamData.series ?? []
+        const live: any[]   = xtreamData.live   ?? []
 
         addLog(`📦 ${vod.length} filmes | ${series.length} séries | ${live.length} ao vivo`)
         setProgress(20)
