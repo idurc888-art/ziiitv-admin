@@ -16,32 +16,33 @@ interface VodMeta {
   director: string | null
 }
 
+function resolveBackdrop(backdropRaw: any): string | null {
+  const raw = Array.isArray(backdropRaw) ? backdropRaw[0] : backdropRaw
+  if (!raw || typeof raw !== 'string') return null
+  if (raw.startsWith('http')) return raw  // já é URL completa
+  return `https://image.tmdb.org/t/p/w780${raw}`
+}
+
 async function fetchVodInfo(base: string, username: string, password: string, vodId: string): Promise<VodMeta | null> {
   try {
     const url = `${base}/player_api.php?username=${username}&password=${password}&action=get_vod_info&vod_id=${vodId}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
-    if (!res.ok) return null
+    const res = await fetch(url)
+    if (!res.ok) { console.error(`[vod_info] HTTP ${res.status} para vod_id=${vodId}`); return null }
     const data = await res.json()
     const info = data?.info
-    if (!info) return null
-
-    const backdropArr = info.backdrop_path
-    const backdrop = Array.isArray(backdropArr) && backdropArr.length > 0
-      ? `https://image.tmdb.org/t/p/w780${backdropArr[0]}`
-      : (typeof backdropArr === 'string' && backdropArr
-          ? `https://image.tmdb.org/t/p/w780${backdropArr}`
-          : null)
+    if (!info) { console.error(`[vod_info] sem info para vod_id=${vodId}`, JSON.stringify(data).slice(0,200)); return null }
 
     return {
-      backdrop,
+      backdrop: resolveBackdrop(info.backdrop_path),
       plot: info.plot || info.description || null,
       rating: info.rating ? parseFloat(String(info.rating)) : null,
-      year: info.releasedate ? String(info.releasedate).slice(0, 4) : null,
+      year: info.release_date ? String(info.release_date).slice(0, 4) : (info.releasedate ? String(info.releasedate).slice(0, 4) : null),
       tmdb_id: info.tmdb_id ? parseInt(String(info.tmdb_id)) : (info.tmdb ? parseInt(String(info.tmdb)) : null),
       cast: info.cast || info.actors || null,
       director: info.director || null,
     }
-  } catch {
+  } catch (e) {
+    console.error(`[vod_info] erro vod_id=${vodId}:`, e)
     return null
   }
 }
@@ -49,29 +50,23 @@ async function fetchVodInfo(base: string, username: string, password: string, vo
 async function fetchSeriesInfo(base: string, username: string, password: string, seriesId: string): Promise<VodMeta | null> {
   try {
     const url = `${base}/player_api.php?username=${username}&password=${password}&action=get_series_info&series_id=${seriesId}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    const res = await fetch(url)
     if (!res.ok) return null
     const data = await res.json()
     const info = data?.info
     if (!info) return null
 
-    const backdropArr = info.backdrop_path
-    const backdrop = Array.isArray(backdropArr) && backdropArr.length > 0
-      ? `https://image.tmdb.org/t/p/w780${backdropArr[0]}`
-      : (typeof backdropArr === 'string' && backdropArr
-          ? `https://image.tmdb.org/t/p/w780${backdropArr}`
-          : null)
-
     return {
-      backdrop,
+      backdrop: resolveBackdrop(info.backdrop_path),
       plot: info.plot || null,
       rating: info.rating ? parseFloat(String(info.rating)) : null,
-      year: info.releasedate ? String(info.releasedate).slice(0, 4) : null,
+      year: info.release_date ? String(info.release_date).slice(0, 4) : (info.releasedate ? String(info.releasedate).slice(0, 4) : null),
       tmdb_id: info.tmdb_id ? parseInt(String(info.tmdb_id)) : null,
       cast: info.cast || null,
       director: null,
     }
-  } catch {
+  } catch (e) {
+    console.error(`[series_info] erro series_id=${seriesId}:`, e)
     return null
   }
 }
