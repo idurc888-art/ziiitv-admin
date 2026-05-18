@@ -17,24 +17,26 @@ function ok(body: object) {
   });
 }
 
-// Extrai array de diferentes formatos de resposta Xtream
 function extractArray(data: any): any[] {
-  if (Array.isArray(data)) return data;
+  if (Array.isArray(data))             return data;
   if (data && Array.isArray(data.data))    return data.data;
   if (data && Array.isArray(data.result))  return data.result;
   if (data && Array.isArray(data.streams)) return data.streams;
   return [];
 }
 
-async function fetchAction(base: string, action: string): Promise<{ items: any[]; raw: string; status: number }> {
+async function fetchAction(url: string): Promise<{ items: any[]; status: number; raw: string }> {
   try {
-    const resp = await fetch(`${base}&action=${action}`, { headers: HEADERS });
-    const text = await resp.text();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    const resp  = await fetch(url, { headers: HEADERS, signal: ctrl.signal });
+    clearTimeout(timer);
+    const text  = await resp.text();
     let parsed: any = null;
     try { parsed = JSON.parse(text) } catch { /* não é JSON */ }
-    return { items: parsed ? extractArray(parsed) : [], raw: text.slice(0, 300), status: resp.status };
+    return { items: parsed ? extractArray(parsed) : [], status: resp.status, raw: text.slice(0, 400) };
   } catch (e) {
-    return { items: [], raw: String(e), status: 0 };
+    return { items: [], status: 0, raw: String(e) };
   }
 }
 
@@ -53,11 +55,10 @@ Deno.serve(async (req: Request) => {
     const cleanHost = host.replace(/\/+$/, '');
     const base = `${cleanHost}/player_api.php?username=${username}&password=${password}`;
 
-    const [vodResult, seriesResult, liveResult] = await Promise.all([
-      fetchAction(base, 'get_vod_streams'),
-      fetchAction(base, 'get_series'),
-      fetchAction(base, 'get_live_streams'),
-    ]);
+    // Busca em série para não sobrecarregar e respeitar o timeout total
+    const vodResult    = await fetchAction(`${base}&action=get_vod_streams`);
+    const seriesResult = await fetchAction(`${base}&action=get_series`);
+    const liveResult   = await fetchAction(`${base}&action=get_live_streams`);
 
     const vod    = vodResult.items;
     const series = seriesResult.items;

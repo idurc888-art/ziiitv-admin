@@ -552,15 +552,15 @@ export function UploadPlaylist() {
           )}
 
           {/* Progresso e Logs */}
-          {loading && (
+          {(loading || logs.length > 0) && !code && (
             <div className="space-y-4">
-              {phase && (
+              {loading && phase && (
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
                   <span className="text-white text-sm font-medium">{PHASE_LABEL[phase]}</span>
                 </div>
               )}
-              {progress > 0 && (
+              {loading && progress > 0 && (
                 <div className="w-full bg-gray-800 rounded-full h-1.5">
                   <div
                     className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
