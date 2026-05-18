@@ -297,7 +297,15 @@ export function HomeEditor() {
         ...seriesCats.map((c: any) => ({ playlist_id: playlist.id, content_type: 'series', name: c.category_name, group_title: c.category_name, streams: [] })),
       ].filter((r: any) => r.name)
 
-      if (rows.length === 0) throw new Error('Nenhum grupo retornado — verifique as credenciais ou tente abrir a lista na TV')
+      if (rows.length === 0) {
+        const debug = result?.debug
+        const hint = debug?.liveStatus === 0
+          ? 'Servidor inacessível (timeout/conexão recusada)'
+          : debug?.liveRaw
+            ? `Resposta do servidor: ${debug.liveRaw}`
+            : 'Nenhum grupo retornado'
+        throw new Error(hint + ' — tente abrir a lista na TV com o código')
+      }
 
       const BATCH = 500
       for (let i = 0; i < rows.length; i += BATCH) {
