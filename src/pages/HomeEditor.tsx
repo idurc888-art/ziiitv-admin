@@ -6,6 +6,7 @@ import {
   ArrowLeft, Plus, GripVertical, Trash2, Pencil,
   ChevronDown, ChevronUp, Loader2, CheckCircle2, Check,
   Tv2, Film, Clapperboard, Sparkles, Eye, EyeOff, List,
+  Download, RefreshCw,
 } from 'lucide-react'
 
 // ─── Metadados de exibição ────────────────────────────────────────────────────
@@ -112,6 +113,13 @@ interface XtreamGroup {
   playlist_id: string
 }
 
+interface XtreamPlaylist {
+  id: string
+  url_original: string
+  last_synced_at: string | null
+  content_count: number | null
+}
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function HomeEditor() {
@@ -126,8 +134,11 @@ export function HomeEditor() {
   const [editingSection, setEditingSection] = useState<Section | null>(null)
   const [editTitle,   setEditTitle]   = useState('')
   const [adding,      setAdding]      = useState<string | null>(null)
-  const [xtreamGroups, setXtreamGroups] = useState<XtreamGroup[]>([])
-  const [xtreamLoading, setXtreamLoading] = useState(false)
+  const [xtreamGroups,    setXtreamGroups]    = useState<XtreamGroup[]>([])
+  const [xtreamLoading,   setXtreamLoading]   = useState(false)
+  const [xtreamPlaylists, setXtreamPlaylists] = useState<XtreamPlaylist[]>([])
+  const [selectedPid,     setSelectedPid]     = useState<string | null>(null)
+  const [importing,       setImporting]       = useState(false)
 
   // ── Carrega home + seções ─────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -162,11 +173,23 @@ export function HomeEditor() {
     setStatsLoading(false)
   }, [])
 
-  const fetchXtreamGroups = useCallback(async () => {
+  const fetchXtreamPlaylists = useCallback(async () => {
+    const { data } = await supabase
+      .from('playlists')
+      .select('id, url_original, last_synced_at, content_count')
+      .ilike('url_original', '%get.php?username=%')
+      .order('created_at', { ascending: false })
+    const list = (data || []) as XtreamPlaylist[]
+    setXtreamPlaylists(list)
+    setSelectedPid(prev => prev ?? (list[0]?.id || null))
+  }, [])
+
+  const fetchXtreamGroups = useCallback(async (pid: string) => {
     setXtreamLoading(true)
     const { data } = await supabase
       .from('playlist_content')
       .select('group_title, content_type, playlist_id, playlists(name)')
+      .eq('playlist_id', pid)
       .order('group_title')
     if (data) {
       const acc = new Map<string, XtreamGroup>()
@@ -189,7 +212,12 @@ export function HomeEditor() {
   }, [])
 
   useEffect(() => { fetchData(); fetchStats() }, [fetchData, fetchStats])
-  useEffect(() => { if (activeTab === 'playlist') fetchXtreamGroups() }, [activeTab, fetchXtreamGroups])
+  useEffect(() => {
+    if (activeTab === 'playlist') fetchXtreamPlaylists()
+  }, [activeTab, fetchXtreamPlaylists])
+  useEffect(() => {
+    if (activeTab === 'playlist' && selectedPid) fetchXtreamGroups(selectedPid)
+  }, [activeTab, selectedPid, fetchXtreamGroups])
 
   // ── Adicionar seção do catálogo ───────────────────────────────────────────
   async function addFromCatalog(
@@ -247,6 +275,56 @@ export function HomeEditor() {
     if (error) toast.error('Erro ao adicionar: ' + error.message)
     else { toast.success(`"${group.group_title}" adicionada!`); fetchData() }
     setAdding(null)
+  }
+
+  async function importFromXtream(playlist: XtreamPlaylist) {
+    setImporting(true)
+    try {
+      const u = new URL(playlist.url_original)
+      const host     = u.origin
+      const username = u.searchParams.get('username') || ''
+      const password = u.searchParams.get('password') || ''
+      const api      = `${host}/player_api.php?username=${username}&password=${password}`
+
+      const [liveCats, vodCats, seriesCats] = await Promise.all([
+        fetch(`${api}&action=get_live_categories`).then(r => r.json()),
+        fetch(`${api}&action=get_vod_categories`).then(r => r.json()),
+        fetch(`${api}&action=get_series_categories`).then(r => r.json()),
+      ])
+
+      const rows: any[] = [
+        ...(Array.isArray(liveCats)   ? liveCats   : []).map((c: any) => ({ playlist_id: playlist.id, content_type: 'live',   name: c.category_name, group_title: c.category_name, streams: [] })),
+        ...(Array.isArray(vodCats)    ? vodCats    : []).map((c: any) => ({ playlist_id: playlist.id, content_type: 'movie',  name: c.category_name, group_title: c.category_name, streams: [] })),
+        ...(Array.isArray(seriesCats) ? seriesCats : []).map((c: any) => ({ playlist_id: playlist.id, content_type: 'series', name: c.category_name, group_title: c.category_name, streams: [] })),
+      ].filter(r => r.name)
+
+      if (rows.length === 0) throw new Error('Nenhum grupo recebido — o servidor pode ter bloqueado a requisição por CORS')
+
+      const BATCH = 500
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const { error } = await supabase
+          .from('playlist_content')
+          .upsert(rows.slice(i, i + BATCH), { onConflict: 'playlist_id,content_type,name' })
+        if (error) throw error
+      }
+
+      await supabase.from('playlists').update({
+        last_synced_at: new Date().toISOString(),
+        content_count: rows.length,
+      }).eq('id', playlist.id)
+
+      toast.success(`${rows.length} grupos importados!`)
+      fetchXtreamPlaylists()
+      fetchXtreamGroups(playlist.id)
+    } catch (err: any) {
+      if (err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
+        toast.error('Servidor bloqueou requisição (CORS). Abra a lista na TV com o código para sincronizar.')
+      } else {
+        toast.error(err.message || 'Erro ao importar')
+      }
+    } finally {
+      setImporting(false)
+    }
   }
 
   // ── Ações das seções ──────────────────────────────────────────────────────
@@ -463,32 +541,15 @@ export function HomeEditor() {
     }
 
     if (activeTab === 'playlist') {
-      if (xtreamLoading) {
-        return (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 text-accent animate-spin" />
-            <span className="ml-2 text-sm text-text-muted">Carregando grupos Xtream...</span>
-          </div>
-        )
-      }
-      if (xtreamGroups.length === 0) {
-        return (
-          <div className="flex flex-col items-center justify-center py-10 text-center text-text-muted px-4">
-            <List className="w-8 h-8 mb-3 opacity-40" />
-            <p className="text-sm font-medium mb-1">Nenhum conteúdo sincronizado</p>
-            <p className="text-xs">Ative uma playlist Xtream na TV para sincronizar os grupos aqui.</p>
-          </div>
-        )
-      }
-
+      const selectedPl   = xtreamPlaylists.find(p => p.id === selectedPid)
       const liveGroups   = xtreamGroups.filter(g => g.content_type === 'live')
       const movieGroups  = xtreamGroups.filter(g => g.content_type === 'movie')
       const seriesGroups = xtreamGroups.filter(g => g.content_type === 'series')
 
       function XtreamGroupRow({ group }: { group: XtreamGroup }) {
         const inHome  = isXtreamGroupInHome(group.group_title, group.content_type)
-        const key     = `${group.group_title}||${group.content_type}`
-        const loading = adding === key
+        const rowKey  = `${group.group_title}||${group.content_type}`
+        const loading = adding === rowKey
         return (
           <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
             inHome ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface hover:bg-elevated'
@@ -499,11 +560,12 @@ export function HomeEditor() {
             }`} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-text-primary truncate">{group.group_title}</p>
-              <p className="text-[10px] text-text-muted">{group.playlist_name}</p>
             </div>
-            <span className="text-xs font-mono text-text-muted bg-elevated px-1.5 py-0.5 rounded border border-border flex-shrink-0">
-              {group.count.toLocaleString('pt-BR')}
-            </span>
+            {group.count > 1 && (
+              <span className="text-xs font-mono text-text-muted bg-elevated px-1.5 py-0.5 rounded border border-border flex-shrink-0">
+                {group.count.toLocaleString('pt-BR')}
+              </span>
+            )}
             {inHome ? (
               <span className="flex items-center gap-1 text-xs text-accent font-medium flex-shrink-0 px-2">
                 <Check className="w-3 h-3" /> Na home
@@ -523,23 +585,83 @@ export function HomeEditor() {
       }
 
       return (
-        <div className="space-y-4">
-          {liveGroups.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-1.5 px-1">Canais ao Vivo</p>
-              <div className="space-y-1.5">{liveGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
-            </div>
+        <div className="space-y-3">
+          {/* Seletor de playlist */}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedPid || ''}
+              onChange={e => { setSelectedPid(e.target.value || null); setXtreamGroups([]) }}
+              className="flex-1 text-xs bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-accent"
+            >
+              {xtreamPlaylists.length === 0
+                ? <option value="">Nenhuma playlist Xtream cadastrada</option>
+                : xtreamPlaylists.map(pl => {
+                    const host = (() => { try { return new URL(pl.url_original).host } catch { return pl.id.slice(0, 8) } })()
+                    return <option key={pl.id} value={pl.id}>{host}</option>
+                  })
+              }
+            </select>
+            {selectedPl && (
+              <button
+                onClick={() => importFromXtream(selectedPl)}
+                disabled={importing}
+                title="Busca grupos/categorias direto do servidor Xtream via browser"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex-shrink-0"
+              >
+                {importing
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : selectedPl.last_synced_at
+                    ? <RefreshCw className="w-3.5 h-3.5" />
+                    : <Download className="w-3.5 h-3.5" />}
+                {importing ? 'Importando...' : selectedPl.last_synced_at ? 'Atualizar' : 'Importar'}
+              </button>
+            )}
+          </div>
+
+          {selectedPl?.last_synced_at && (
+            <p className="text-[10px] text-text-muted px-0.5">
+              Importado {new Date(selectedPl.last_synced_at).toLocaleString('pt-BR')}
+              {selectedPl.content_count != null && ` · ${selectedPl.content_count} grupos`}
+            </p>
           )}
-          {movieGroups.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5 px-1">Filmes</p>
-              <div className="space-y-1.5">{movieGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+
+          {xtreamPlaylists.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted px-4">
+              <List className="w-7 h-7 mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma playlist Xtream cadastrada.</p>
             </div>
-          )}
-          {seriesGroups.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-1.5 px-1">Séries</p>
-              <div className="space-y-1.5">{seriesGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+          ) : xtreamLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 text-accent animate-spin" />
+              <span className="ml-2 text-xs text-text-muted">Carregando grupos...</span>
+            </div>
+          ) : xtreamGroups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted px-4">
+              <Download className="w-7 h-7 mb-2 opacity-40" />
+              <p className="text-sm font-medium mb-1">Lista não importada</p>
+              <p className="text-xs mb-3">Clique em <strong>Importar</strong> para buscar os grupos direto do servidor.</p>
+              <p className="text-[10px] opacity-60">Se o servidor bloquear (CORS), abra a lista na TV com o código.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {liveGroups.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-1.5 px-1">Canais ao Vivo · {liveGroups.length}</p>
+                  <div className="space-y-1.5">{liveGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+                </div>
+              )}
+              {movieGroups.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5 px-1">Filmes · {movieGroups.length}</p>
+                  <div className="space-y-1.5">{movieGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+                </div>
+              )}
+              {seriesGroups.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-1.5 px-1">Séries · {seriesGroups.length}</p>
+                  <div className="space-y-1.5">{seriesGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+                </div>
+              )}
             </div>
           )}
         </div>
