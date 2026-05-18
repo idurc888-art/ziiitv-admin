@@ -188,28 +188,16 @@ export function HomeEditor() {
 
   const fetchXtreamGroups = useCallback(async (pid: string) => {
     setXtreamLoading(true)
-    const { data, error } = await supabase
-      .from('playlist_content')
-      .select('group_title, content_type, playlist_id')
-      .eq('playlist_id', pid)
-      .order('group_title')
+    const { data, error } = await supabase.rpc('get_playlist_group_counts', { p_playlist_id: pid })
     if (error) console.error('[HomeEditor] fetchXtreamGroups error:', error)
     if (data) {
-      const acc = new Map<string, XtreamGroup>()
-      for (const row of data as any[]) {
-        const key = `${row.group_title}||${row.content_type}||${row.playlist_id}`
-        if (!acc.has(key)) {
-          acc.set(key, {
-            group_title: row.group_title,
-            content_type: row.content_type,
-            count: 0,
-            playlist_name: '',
-            playlist_id: row.playlist_id,
-          })
-        }
-        acc.get(key)!.count++
-      }
-      setXtreamGroups(Array.from(acc.values()).sort((a, b) => b.count - a.count))
+      setXtreamGroups((data as any[]).map(row => ({
+        group_title:  row.group_title,
+        content_type: row.content_type,
+        count:        Number(row.count),
+        playlist_name: '',
+        playlist_id:  row.playlist_id,
+      })))
     }
     setXtreamLoading(false)
   }, [])
