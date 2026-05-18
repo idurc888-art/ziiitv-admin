@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import {
   Trash2, Calendar, CheckCircle, XCircle, Clock,
   Eye, Clapperboard, Film, Tv2, Sparkles, Info, Copy, Check, Upload, Zap,
+  LayoutList, Wand2, RefreshCw,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -18,6 +19,9 @@ interface Playlist {
   processed_at: string | null
   created_at: string
   error_message: string | null
+  presentation_mode: 'auto' | 'curated' | null
+  last_synced_at: string | null
+  content_count: number | null
 }
 
 interface PlaylistStats {
@@ -67,6 +71,7 @@ export function Playlists() {
   const [codesMap,      setCodesMap]     = useState<Record<string, string>>({})
   const [codeCopied,    setCodeCopied]   = useState<string | null>(null)
   const [generatingCode, setGeneratingCode] = useState<string | null>(null)
+  const [togglingMode,  setTogglingMode] = useState<string | null>(null)
 
   const loadPlaylists = useCallback(async () => {
     setLoading(true)
@@ -76,7 +81,7 @@ export function Playlists() {
 
       const [{ data: pls }, { data: codes }] = await Promise.all([
         supabase.from('playlists')
-          .select('id, url_original, status, channel_count, processed_at, created_at, error_message')
+          .select('id, url_original, status, channel_count, processed_at, created_at, error_message, presentation_mode, last_synced_at, content_count')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         supabase.from('pairing_codes')
@@ -154,6 +159,24 @@ export function Playlists() {
     }
   }
 
+  const handleToggleMode = async (pl: Playlist) => {
+    const next = (pl.presentation_mode ?? 'auto') === 'auto' ? 'curated' : 'auto'
+    setTogglingMode(pl.id)
+    try {
+      const { error } = await supabase
+        .from('playlists')
+        .update({ presentation_mode: next })
+        .eq('id', pl.id)
+      if (error) throw error
+      setPlaylists(prev => prev.map(p => p.id === pl.id ? { ...p, presentation_mode: next } : p))
+      toast.success(next === 'curated' ? 'Modo Curado ativo — só aparece o que você configurar na Home' : 'Modo Auto ativo — mostra tudo da lista')
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao alterar modo')
+    } finally {
+      setTogglingMode(null)
+    }
+  }
+
   const handleDelete = async (playlistId: string) => {
     if (!confirm('Deletar playlist? Remove TODOS os canais associados. Não pode ser desfeito!')) return
     setDeleting(playlistId)
@@ -224,6 +247,10 @@ export function Playlists() {
             const enrichPct = st && st.total > 0 ? Math.round((st.enriched / st.total) * 100) : 0
             const plCode = codesMap[pl.id]
 
+            const isXtream = pl.url_original.includes('get.php?username=')
+            const mode = pl.presentation_mode ?? 'auto'
+            const isCurated = mode === 'curated'
+
             return (
               <Card key={pl.id} className="overflow-hidden">
                 {/* ── Cabeçalho do card ─────────────────────────────────── */}
@@ -254,6 +281,26 @@ export function Playlists() {
                             : <Copy className="w-3 h-3 opacity-60" />}
                         </button>
                       )}
+                      {/* Modo de apresentação — só Xtream */}
+                      {isXtream && (
+                        <button
+                          onClick={() => handleToggleMode(pl)}
+                          disabled={togglingMode === pl.id}
+                          title={isCurated ? 'Modo Curado: só aparece o que está na Home. Clique para mudar para Auto.' : 'Modo Auto: mostra tudo da lista. Clique para mudar para Curado.'}
+                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium transition-colors ${
+                            isCurated
+                              ? 'bg-accent/15 text-accent border-accent/30 hover:bg-accent/25'
+                              : 'bg-gray-500/15 text-gray-400 border-gray-500/30 hover:bg-gray-500/25'
+                          }`}
+                        >
+                          {togglingMode === pl.id
+                            ? <Clock className="w-3 h-3 animate-spin" />
+                            : isCurated
+                              ? <Wand2 className="w-3 h-3" />
+                              : <LayoutList className="w-3 h-3" />}
+                          {isCurated ? 'Curado' : 'Auto'}
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
                       <span className="flex items-center gap-1">
@@ -263,6 +310,19 @@ export function Playlists() {
                       {pl.processed_at && (
                         <span>Processada {new Date(pl.processed_at).toLocaleDateString('pt-BR')}</span>
                       )}
+                      {/* Sync status — só Xtream */}
+                      {isXtream && pl.last_synced_at ? (
+                        <span className="flex items-center gap-1 text-green-400/70">
+                          <RefreshCw className="w-3 h-3" />
+                          Sincronizado {new Date(pl.last_synced_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          {pl.content_count != null && ` · ${pl.content_count.toLocaleString('pt-BR')} títulos`}
+                        </span>
+                      ) : isXtream ? (
+                        <span className="flex items-center gap-1 text-text-muted/60">
+                          <RefreshCw className="w-3 h-3" />
+                          Não sincronizado — abra a lista na TV
+                        </span>
+                      ) : null}
                       <span className="font-mono text-[10px] text-text-muted/60">{pl.id.slice(0, 8)}…</span>
                     </div>
                   </div>
