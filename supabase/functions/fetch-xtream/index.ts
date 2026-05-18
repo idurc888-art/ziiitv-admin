@@ -11,6 +11,12 @@ const HEADERS = {
   'Accept': 'application/json, */*',
 };
 
+function ok(body: object) {
+  return new Response(JSON.stringify(body), {
+    status: 200, headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
+
 async function fetchAction(base: string, action: string): Promise<any[]> {
   try {
     const resp = await fetch(`${base}&action=${action}`, { headers: HEADERS });
@@ -27,31 +33,15 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: CORS });
   }
 
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Método não permitido' }), {
-      status: 405, headers: { ...CORS, 'Content-Type': 'application/json' },
-    });
-  }
-
   try {
     const { host, username, password } = await req.json();
 
     if (!host || !username || !password) {
-      return new Response(JSON.stringify({ error: 'host, username e password são obrigatórios' }), {
-        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
-      });
+      return ok({ success: false, error: 'host, username e password são obrigatórios' });
     }
 
     const cleanHost = host.replace(/\/+$/, '');
-    const base = `${cleanHost}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-
-    // Verifica credenciais primeiro
-    const authResp = await fetch(`${base}&action=get_account_info`, { headers: HEADERS });
-    if (authResp.status === 403 || authResp.status === 401) {
-      return new Response(JSON.stringify({ error: 'Credenciais inválidas ou acesso negado pelo servidor Xtream.' }), {
-        status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
-      });
-    }
+    const base = `${cleanHost}/player_api.php?username=${username}&password=${password}`;
 
     const [vod, series, live] = await Promise.all([
       fetchAction(base, 'get_vod_streams'),
@@ -59,13 +49,13 @@ Deno.serve(async (req: Request) => {
       fetchAction(base, 'get_live_streams'),
     ]);
 
-    return new Response(JSON.stringify({ success: true, vod, series, live }), {
-      status: 200, headers: { ...CORS, 'Content-Type': 'application/json' },
-    });
+    if (vod.length === 0 && series.length === 0 && live.length === 0) {
+      return ok({ success: false, error: 'Servidor Xtream não retornou canais. Verifique host, usuário e senha.' });
+    }
+
+    return ok({ success: true, vod, series, live });
 
   } catch (e) {
-    return new Response(JSON.stringify({ error: `Erro interno: ${e}` }), {
-      status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
-    });
+    return ok({ success: false, error: `Erro interno: ${e}` });
   }
 });
