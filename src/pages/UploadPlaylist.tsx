@@ -129,7 +129,7 @@ export function UploadPlaylist() {
         : parseXtreamUrl(url.trim())
 
       const urlKey = mode === 'file'   ? `file:${file!.name}`
-                   : mode === 'xtream' ? `xtream:${host}`
+                   : mode === 'xtream' ? `${host}/get.php?username=${xtreamUser.trim()}&password=${xtreamPass.trim()}&type=m3u_plus&output=ts`
                    :                     url.trim()
 
       addLog('Criando registro da playlist no banco de dados...')
@@ -214,143 +214,20 @@ export function UploadPlaylist() {
         setStats({ raw: rawChannels.length, series: seriesCount, movies: moviesCount, live: liveCount, inserted, discarded: normStats.discarded, linked: 0 })
         setProgress(90)
 
-      // ── Modo Xtream (mode==='xtream' OU URL com credenciais embutidas) ─────────
+      // ── Modo Xtream — credenciais salvas, TV busca direto do servidor ─────────
       } else if (xtream) {
         addLog(`🎯 Xtream: ${xtream.host}`)
-        setPhase('parsing')
-        setProgress(5)
+        addLog('Credenciais salvas. A TV vai buscar os canais direto do servidor Xtream.')
+        setProgress(50)
 
-        addLog('Buscando filmes, séries e canais ao vivo...')
-        const { data: xtreamData, error: xtreamErr } = await supabase.functions.invoke('fetch-xtream', {
-          body: { host: xtream.host, username: xtream.username, password: xtream.password },
-        })
-        if (xtreamErr) throw new Error(xtreamErr.message)
-        if (!xtreamData?.success) {
-          if (xtreamData?.debug) {
-            const d = xtreamData.debug
-            addLog(`🔍 VOD (${d.vod_status}): ${d.vod_raw}`)
-            addLog(`🔍 Series (${d.series_status}): ${d.series_raw}`)
-            addLog(`🔍 Live (${d.live_status}): ${d.live_raw}`)
-          }
-          throw new Error(xtreamData?.error || 'Erro ao conectar no servidor Xtream')
-        }
+        await (supabase as any)
+          .from('playlists')
+          .update({ status: 'ready', processed_at: new Date().toISOString() })
+          .eq('id', playlist.id)
 
-        const vod: any[]    = xtreamData.vod    ?? []
-        const series: any[] = xtreamData.series ?? []
-        const live: any[]   = xtreamData.live   ?? []
-
-        addLog(`📦 ${vod.length} filmes | ${series.length} séries | ${live.length} ao vivo`)
-        setProgress(20)
-        setPhase('processing')
-
-        const channels: any[] = []
-
-        for (const v of vod) {
-          channels.push({
-            playlist_id:  playlist.id,
-            user_id:      user.id,
-            name:         v.name,
-            group_name:   v.category_name || 'Filmes',
-            logo_url:     v.stream_icon || '',
-            streaming:    null,
-            streams:      [{ u: `${xtream.host}/movie/${xtream.username}/${xtream.password}/${v.stream_id}.mp4`, q: 'UNKNOWN' }],
-            content_type: 'movie',
-            canonical_id: null,
-            active:       true,
-            _tmdb_id:     v.tmdb || v.tmdb_id || null,
-            _type:        'movie' as const,
-          })
-        }
-
-        for (const s of series) {
-          channels.push({
-            playlist_id:  playlist.id,
-            user_id:      user.id,
-            name:         s.name,
-            group_name:   s.category_name || 'Séries',
-            logo_url:     s.cover || '',
-            streaming:    null,
-            streams:      [],
-            content_type: 'series',
-            canonical_id: null,
-            active:       true,
-            _tmdb_id:     s.tmdb || s.tmdb_id || null,
-            _type:        'series' as const,
-          })
-        }
-
-        for (const l of live) {
-          channels.push({
-            playlist_id:  playlist.id,
-            user_id:      user.id,
-            name:         l.name,
-            group_name:   l.category_name || 'Ao Vivo',
-            logo_url:     l.stream_icon || '',
-            streaming:    null,
-            streams:      [{ u: `${xtream.host}/live/${xtream.username}/${xtream.password}/${l.stream_id}.ts`, q: 'UNKNOWN' }],
-            content_type: 'live',
-            canonical_id: null,
-            active:       true,
-            _tmdb_id:     null,
-            _type:        null,
-          })
-        }
-
-        setProgress(35)
-        setPhase('saving')
-
-        const withTmdb    = channels.filter(c => c._tmdb_id && c._type)
-        const withoutTmdb = channels.filter(c => !c._tmdb_id || !c._type)
-
-        addLog(`🔗 ${withTmdb.length} canais com tmdb_id — enriquecendo automaticamente...`)
-
-        let linked = 0
-        const ENRICH_BATCH = 20
-
-        for (let i = 0; i < withTmdb.length; i += ENRICH_BATCH) {
-          if (cancelledRef.current) { await handleCancel(); return }
-          const batch = withTmdb.slice(i, i + ENRICH_BATCH)
-
-          await Promise.all(batch.map(async (ch) => {
-            try {
-              const details     = await fetchTmdbDetails(ch._tmdb_id, ch._type)
-              const slug        = ch.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-              const canonicalId = `${ch._type === 'series' ? 'serie' : 'filme'}-${slug}`
-
-              await supabaseAdmin.from('canonical_titles').upsert({
-                id: canonicalId, slug, title: ch.name,
-                type: ch._type,
-                streaming: null,
-                tmdb_id: ch._tmdb_id,
-                ...(details || {}),
-              }, { onConflict: 'id' })
-
-              ch.canonical_id = canonicalId
-              linked++
-            } catch { /* não bloqueia */ }
-          }))
-
-          setProgress(35 + Math.round((i / withTmdb.length) * 40))
-          addLog(`✅ ${Math.min(i + ENRICH_BATCH, withTmdb.length)}/${withTmdb.length} enriquecidos`)
-        }
-
-        const allToSave = [...withTmdb, ...withoutTmdb].map(({ _tmdb_id, _type, ...ch }) => ch)
-        const BATCH = 1000
-        let inserted = 0
-
-        for (let i = 0; i < allToSave.length; i += BATCH) {
-          if (cancelledRef.current) { await handleCancel(); return }
-          const { error } = await (supabase as any).from('channels').insert(allToSave.slice(i, i + BATCH))
-          if (error) throw new Error(error.message)
-          inserted += Math.min(BATCH, allToSave.length - i)
-          setProgress(75 + Math.round((inserted / allToSave.length) * 15))
-        }
-
-        await (supabase as any).from('playlists').update({ status: 'ready', processed_at: new Date().toISOString() }).eq('id', playlist.id)
-
-        setStats({ raw: channels.length, series: series.length, movies: vod.length, live: live.length, inserted, discarded: 0, linked })
+        setStats({ raw: 0, series: 0, movies: 0, live: 0, inserted: 0, discarded: 0, linked: 0 })
         setProgress(90)
-        addLog(`🎉 Xtream importado! ${linked} canais enriquecidos automaticamente.`)
+        addLog('✅ Pronto! Use o código abaixo na TV para carregar a lista Xtream.')
 
       // ── Modo URL M3U normal ───────────────────────────────────────────────────
       } else {

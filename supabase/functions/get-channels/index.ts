@@ -54,6 +54,21 @@ serve(async (req) => {
 
     await supabase.from('pairing_codes').update({ last_used_at: new Date().toISOString() }).eq('code', code)
 
+    // Playlist Xtream: retorna URL M3U para a TV buscar diretamente (IP residencial)
+    if (pairing.playlist_id) {
+      const { data: playlist } = await supabase
+        .from('playlists')
+        .select('url_original')
+        .eq('id', pairing.playlist_id)
+        .single()
+
+      if (playlist?.url_original && playlist.url_original.includes('get.php?username=')) {
+        return new Response(JSON.stringify({ xtream: true, m3u_url: playlist.url_original }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
     const SELECT_FIELDS = `
       id,
       name,
