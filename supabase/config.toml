@@ -8,6 +8,10 @@ verify_jwt = false
 [functions.delete-device-data]
 verify_jwt = false
 
+# Chamada pela TV após carregar M3U Xtream (autenticação via código ZIII-XXXX)
+[functions.sync-playlist-content]
+verify_jwt = false
+
 # Funções privadas — chamadas pelo admin web com JWT do usuário logado
 # [functions.generate-code]   → verify_jwt = true (padrão)
 # [functions.fetch-m3u]       → verify_jwt = true (padrão)
