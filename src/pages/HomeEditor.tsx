@@ -6,7 +6,6 @@ import {
   ArrowLeft, Plus, GripVertical, Trash2, Pencil,
   ChevronDown, ChevronUp, Loader2, CheckCircle2, Check,
   Tv2, Film, Clapperboard, Sparkles, Eye, EyeOff, List,
-  Download, RefreshCw,
 } from 'lucide-react'
 
 // ─── Metadados de exibição ────────────────────────────────────────────────────
@@ -118,6 +117,8 @@ interface XtreamPlaylist {
   url_original: string
   last_synced_at: string | null
   content_count: number | null
+  presentation_mode: 'auto' | 'curated'
+  home_id: string | null
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -138,7 +139,8 @@ export function HomeEditor() {
   const [xtreamLoading,   setXtreamLoading]   = useState(false)
   const [xtreamPlaylists, setXtreamPlaylists] = useState<XtreamPlaylist[]>([])
   const [selectedPid,     setSelectedPid]     = useState<string | null>(null)
-  const [importing,       setImporting]       = useState(false)
+  const [togglingMode,    setTogglingMode]    = useState(false)
+  const [assigningHome,   setAssigningHome]   = useState(false)
 
   // ── Carrega home + seções ─────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -156,7 +158,7 @@ export function HomeEditor() {
   // ── Carrega estatísticas do catálogo ──────────────────────────────────────
   const fetchStats = useCallback(async () => {
     setStatsLoading(true)
-    const { data: rows } = await supabaseAdmin
+    const { data: rows } = await supabase
       .from('channels')
       .select('streaming, content_type')
       .in('content_type', ['series', 'movie', 'live'])
@@ -174,9 +176,9 @@ export function HomeEditor() {
   }, [])
 
   const fetchXtreamPlaylists = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
       .from('playlists')
-      .select('id, url_original, last_synced_at, content_count')
+      .select('id, url_original, last_synced_at, content_count, presentation_mode, home_id')
       .ilike('url_original', '%get.php?username=%')
       .order('created_at', { ascending: false })
     const list = (data || []) as XtreamPlaylist[]
@@ -186,11 +188,13 @@ export function HomeEditor() {
 
   const fetchXtreamGroups = useCallback(async (pid: string) => {
     setXtreamLoading(true)
-    const { data } = await supabase
+    // supabaseAdmin bypassa o RLS (playlist_content pertence ao usuário da TV, não ao admin)
+    const { data, error } = await supabaseAdmin
       .from('playlist_content')
-      .select('group_title, content_type, playlist_id, playlists(name)')
+      .select('group_title, content_type, playlist_id')
       .eq('playlist_id', pid)
       .order('group_title')
+    if (error) console.error('[HomeEditor] fetchXtreamGroups error:', error)
     if (data) {
       const acc = new Map<string, XtreamGroup>()
       for (const row of data as any[]) {
@@ -200,7 +204,7 @@ export function HomeEditor() {
             group_title: row.group_title,
             content_type: row.content_type,
             count: 0,
-            playlist_name: row.playlists?.name ?? '—',
+            playlist_name: '',
             playlist_id: row.playlist_id,
           })
         }
@@ -277,57 +281,32 @@ export function HomeEditor() {
     setAdding(null)
   }
 
-  async function importFromXtream(playlist: XtreamPlaylist) {
-    setImporting(true)
-    try {
-      // Usa Edge Function como proxy — evita CORS e IPs de datacenter bloqueados
-      const { data: result, error: fnErr } = await supabase.functions.invoke(
-        `proxy-xtream-categories?playlist_id=${playlist.id}`,
-        { method: 'GET' } as any,
-      )
-      if (fnErr) throw fnErr
+  // Enterprise: alterna presentation_mode da playlist (auto ↔ curated)
+  async function togglePresentationMode(playlist: XtreamPlaylist) {
+    setTogglingMode(true)
+    const next = playlist.presentation_mode === 'curated' ? 'auto' : 'curated'
+    const { error } = await supabaseAdmin
+      .from('playlists')
+      .update({ presentation_mode: next })
+      .eq('id', playlist.id)
+    if (error) toast.error('Erro ao atualizar modo: ' + error.message)
+    else toast.success(next === 'curated' ? '✅ Modo Curado ativado — TV usará esta home' : '🔄 Modo Auto ativado — TV mostra tudo da lista')
+    setTogglingMode(false)
+    fetchXtreamPlaylists()
+  }
 
-      const liveCats   = Array.isArray(result?.live)   ? result.live   : []
-      const vodCats    = Array.isArray(result?.vod)    ? result.vod    : []
-      const seriesCats = Array.isArray(result?.series) ? result.series : []
-
-      const rows: any[] = [
-        ...liveCats.map((c: any)   => ({ playlist_id: playlist.id, content_type: 'live',   name: c.category_name, group_title: c.category_name, streams: [] })),
-        ...vodCats.map((c: any)    => ({ playlist_id: playlist.id, content_type: 'movie',  name: c.category_name, group_title: c.category_name, streams: [] })),
-        ...seriesCats.map((c: any) => ({ playlist_id: playlist.id, content_type: 'series', name: c.category_name, group_title: c.category_name, streams: [] })),
-      ].filter((r: any) => r.name)
-
-      if (rows.length === 0) {
-        const debug = result?.debug
-        const hint = debug?.liveStatus === 0
-          ? 'Servidor inacessível (timeout/conexão recusada)'
-          : debug?.liveRaw
-            ? `Resposta do servidor: ${debug.liveRaw}`
-            : 'Nenhum grupo retornado'
-        throw new Error(hint + ' — tente abrir a lista na TV com o código')
-      }
-
-      const BATCH = 500
-      for (let i = 0; i < rows.length; i += BATCH) {
-        const { error } = await supabase
-          .from('playlist_content')
-          .upsert(rows.slice(i, i + BATCH), { onConflict: 'playlist_id,content_type,name' })
-        if (error) throw error
-      }
-
-      await supabase.from('playlists').update({
-        last_synced_at: new Date().toISOString(),
-        content_count: rows.length,
-      }).eq('id', playlist.id)
-
-      toast.success(`${rows.length} grupos importados!`)
-      fetchXtreamPlaylists()
-      fetchXtreamGroups(playlist.id)
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao importar — tente abrir a lista na TV com o código')
-    } finally {
-      setImporting(false)
-    }
+  // Enterprise: linka esta home à playlist selecionada
+  async function assignHomeToPlaylist(playlist: XtreamPlaylist) {
+    setAssigningHome(true)
+    const alreadyLinked = playlist.home_id === id
+    const { error } = await supabaseAdmin
+      .from('playlists')
+      .update({ home_id: alreadyLinked ? null : id })
+      .eq('id', playlist.id)
+    if (error) toast.error('Erro ao vincular home: ' + error.message)
+    else toast.success(alreadyLinked ? 'Home desvinculada' : '🔗 Esta home vinculada à playlist!')
+    setAssigningHome(false)
+    fetchXtreamPlaylists()
   }
 
   // ── Ações das seções ──────────────────────────────────────────────────────
@@ -604,27 +583,49 @@ export function HomeEditor() {
                   })
               }
             </select>
-            {selectedPl && (
-              <button
-                onClick={() => importFromXtream(selectedPl)}
-                disabled={importing}
-                title="Busca grupos/categorias direto do servidor Xtream via browser"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex-shrink-0"
-              >
-                {importing
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : selectedPl.last_synced_at
-                    ? <RefreshCw className="w-3.5 h-3.5" />
-                    : <Download className="w-3.5 h-3.5" />}
-                {importing ? 'Importando...' : selectedPl.last_synced_at ? 'Atualizar' : 'Importar'}
-              </button>
-            )}
           </div>
+
+          {/* Enterprise controls: modo + vínculo */}
+          {selectedPl && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => togglePresentationMode(selectedPl)}
+                disabled={togglingMode}
+                title={selectedPl.presentation_mode === 'curated' ? 'Clique para usar modo Auto (mostra tudo)' : 'Clique para ativar Modo Curado (usa esta home)'}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 ${
+                  selectedPl.presentation_mode === 'curated'
+                    ? 'bg-accent text-white hover:bg-accent/80'
+                    : 'bg-elevated border border-border text-text-muted hover:border-accent hover:text-accent'
+                }`}
+              >
+                {togglingMode ? <Loader2 className="w-3 h-3 animate-spin" /> : selectedPl.presentation_mode === 'curated' ? <CheckCircle2 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                {selectedPl.presentation_mode === 'curated' ? 'Modo Curado (ativo)' : 'Ativar Modo Curado'}
+              </button>
+              <button
+                onClick={() => assignHomeToPlaylist(selectedPl)}
+                disabled={assigningHome}
+                title={selectedPl.home_id === id ? 'Desvincular esta home da playlist' : 'Vincular esta home à playlist'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 ${
+                  selectedPl.home_id === id
+                    ? 'bg-green-700/30 border border-green-500/40 text-green-400'
+                    : 'bg-elevated border border-border text-text-muted hover:border-green-500 hover:text-green-400'
+                }`}
+              >
+                {assigningHome ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                {selectedPl.home_id === id ? 'Home vinculada ✓' : 'Vincular esta Home'}
+              </button>
+            </div>
+          )}
 
           {selectedPl?.last_synced_at && (
             <p className="text-[10px] text-text-muted px-0.5">
-              Importado {new Date(selectedPl.last_synced_at).toLocaleString('pt-BR')}
-              {selectedPl.content_count != null && ` · ${selectedPl.content_count} grupos`}
+              📡 Sincronizado pela TV em {new Date(selectedPl.last_synced_at).toLocaleString('pt-BR')}
+              {selectedPl.content_count != null && ` · ${selectedPl.content_count.toLocaleString('pt-BR')} itens`}
+            </p>
+          )}
+          {selectedPl && !selectedPl.last_synced_at && (
+            <p className="text-[10px] text-yellow-500/80 px-0.5">
+              ⏳ Aguardando sincronização — abra a lista na TV com o código
             </p>
           )}
 
@@ -640,10 +641,10 @@ export function HomeEditor() {
             </div>
           ) : xtreamGroups.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted px-4">
-              <Download className="w-7 h-7 mb-2 opacity-40" />
-              <p className="text-sm font-medium mb-1">Lista não importada</p>
-              <p className="text-xs mb-3">Clique em <strong>Importar</strong> para buscar os grupos direto do servidor.</p>
-              <p className="text-[10px] opacity-60">Se o servidor bloquear (CORS), abra a lista na TV com o código.</p>
+              <Tv2 className="w-7 h-7 mb-2 opacity-40" />
+              <p className="text-sm font-medium mb-1">Aguardando sincronização da TV</p>
+              <p className="text-xs mb-1">Os grupos aparecem aqui após você abrir a lista na TV com o código.</p>
+              <p className="text-[10px] opacity-60">O servidor IPTV só aceita IPs residenciais — por isso a TV faz o sync.</p>
             </div>
           ) : (
             <div className="space-y-4">

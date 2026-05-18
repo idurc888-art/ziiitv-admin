@@ -76,18 +76,16 @@ serve(async (req) => {
 
     if (insertError) throw insertError
 
-    // Atualiza contadores na playlist (só na última batch)
-    if (replace !== false) {
-      const { count } = await supabase
-        .from('playlist_content')
-        .select('*', { count: 'exact', head: true })
-        .eq('playlist_id', playlistId)
+    // Atualiza contadores na playlist em todo batch para garantir que o total reflita todos os inserts
+    const { count } = await supabase
+      .from('playlist_content')
+      .select('*', { count: 'exact', head: true })
+      .eq('playlist_id', playlistId)
 
-      await supabase
-        .from('playlists')
-        .update({ last_synced_at: new Date().toISOString(), content_count: count ?? 0 })
-        .eq('id', playlistId)
-    }
+    await supabase
+      .from('playlists')
+      .update({ last_synced_at: new Date().toISOString(), content_count: count ?? 0 })
+      .eq('id', playlistId)
 
     return ok({ success: true, inserted: rows.length })
   } catch (err: any) {

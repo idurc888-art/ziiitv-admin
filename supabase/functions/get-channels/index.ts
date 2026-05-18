@@ -8,9 +8,6 @@ const corsHeaders = {
 }
 
 // Limites por content_type para não explodir o payload (293k canais no total)
-// TMDB-enriched: sem limite (geralmente poucos)
-// Live: sem limite (geralmente poucos)
-// Series / Movie sem TMDB: top N por streaming — suficiente para a home
 const MAX_UNENRICHED = 8000
 
 serve(async (req) => {
@@ -54,11 +51,11 @@ serve(async (req) => {
 
     await supabase.from('pairing_codes').update({ last_used_at: new Date().toISOString() }).eq('code', code)
 
-    // Playlist Xtream: retorna URL M3U para a TV buscar diretamente (IP residencial)
+    // ── Playlist Xtream: retorna URL M3U para a TV buscar diretamente (IP residencial) ──
     if (pairing.playlist_id) {
       const { data: playlist } = await supabase
         .from('playlists')
-        .select('url_original, presentation_mode')
+        .select('url_original, presentation_mode, home_id')
         .eq('id', pairing.playlist_id)
         .single()
 
@@ -67,18 +64,25 @@ serve(async (req) => {
         let homeSections: any[] = []
 
         if (presentationMode === 'curated') {
-          // Busca seções da home ativa
-          const { data: activeHome } = await supabase
-            .from('homes')
-            .select('id')
-            .eq('is_active', true)
-            .single()
+          // ── Enterprise: usa a home específica linkada à playlist ──────────
+          const playlistHomeId: string | null = (playlist as any).home_id ?? null
+          let homeId: string | null = playlistHomeId
 
-          if (activeHome?.id) {
+          // Fallback: se a playlist não tem home linkada, usa a home ativa global
+          if (!homeId) {
+            const { data: activeHome } = await supabase
+              .from('homes')
+              .select('id')
+              .eq('is_active', true)
+              .single()
+            homeId = activeHome?.id ?? null
+          }
+
+          if (homeId) {
             const { data: sections } = await supabase
               .from('home_sections')
               .select('id, title, type, sort_order, active, config')
-              .eq('home_id', activeHome.id)
+              .eq('home_id', homeId)
               .eq('active', true)
               .order('sort_order')
             homeSections = sections ?? []
@@ -129,7 +133,6 @@ serve(async (req) => {
         .select(SELECT_FIELDS)
         .eq('user_id', pairing.user_id)
         .eq('active', true)
-      // Se o código for por playlist, filtra só canais daquela playlist
       if (pairing.playlist_id) {
         q = q.eq('playlist_id', pairing.playlist_id)
       }
@@ -172,7 +175,6 @@ serve(async (req) => {
     }
 
     // ── 3. Séries e filmes sem TMDB — top N ordenados por streaming ──────────
-    // Retorna canais com streaming identificado primeiro (melhor para a UI)
     const unenrichedChannels: any[] = []
     {
       let page = 0
