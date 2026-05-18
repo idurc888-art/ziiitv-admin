@@ -225,7 +225,15 @@ export function UploadPlaylist() {
           body: { host: xtream.host, username: xtream.username, password: xtream.password },
         })
         if (xtreamErr) throw new Error(xtreamErr.message)
-        if (!xtreamData?.success) throw new Error(xtreamData?.error || 'Erro ao conectar no servidor Xtream')
+        if (!xtreamData?.success) {
+          if (xtreamData?.debug) {
+            const d = xtreamData.debug
+            addLog(`🔍 VOD (${d.vod_status}): ${d.vod_raw}`)
+            addLog(`🔍 Series (${d.series_status}): ${d.series_raw}`)
+            addLog(`🔍 Live (${d.live_status}): ${d.live_raw}`)
+          }
+          throw new Error(xtreamData?.error || 'Erro ao conectar no servidor Xtream')
+        }
 
         const vod: any[]    = xtreamData.vod    ?? []
         const series: any[] = xtreamData.series ?? []

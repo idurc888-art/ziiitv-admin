@@ -17,14 +17,24 @@ function ok(body: object) {
   });
 }
 
-async function fetchAction(base: string, action: string): Promise<any[]> {
+// Extrai array de diferentes formatos de resposta Xtream
+function extractArray(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.data))    return data.data;
+  if (data && Array.isArray(data.result))  return data.result;
+  if (data && Array.isArray(data.streams)) return data.streams;
+  return [];
+}
+
+async function fetchAction(base: string, action: string): Promise<{ items: any[]; raw: string; status: number }> {
   try {
     const resp = await fetch(`${base}&action=${action}`, { headers: HEADERS });
-    if (!resp.ok) return [];
-    const data = await resp.json();
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
+    const text = await resp.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text) } catch { /* não é JSON */ }
+    return { items: parsed ? extractArray(parsed) : [], raw: text.slice(0, 300), status: resp.status };
+  } catch (e) {
+    return { items: [], raw: String(e), status: 0 };
   }
 }
 
@@ -43,14 +53,26 @@ Deno.serve(async (req: Request) => {
     const cleanHost = host.replace(/\/+$/, '');
     const base = `${cleanHost}/player_api.php?username=${username}&password=${password}`;
 
-    const [vod, series, live] = await Promise.all([
+    const [vodResult, seriesResult, liveResult] = await Promise.all([
       fetchAction(base, 'get_vod_streams'),
       fetchAction(base, 'get_series'),
       fetchAction(base, 'get_live_streams'),
     ]);
 
+    const vod    = vodResult.items;
+    const series = seriesResult.items;
+    const live   = liveResult.items;
+
     if (vod.length === 0 && series.length === 0 && live.length === 0) {
-      return ok({ success: false, error: 'Servidor Xtream não retornou canais. Verifique host, usuário e senha.' });
+      return ok({
+        success: false,
+        error: 'Servidor não retornou canais.',
+        debug: {
+          vod_status:    vodResult.status,    vod_raw:    vodResult.raw,
+          series_status: seriesResult.status, series_raw: seriesResult.raw,
+          live_status:   liveResult.status,   live_raw:   liveResult.raw,
+        },
+      });
     }
 
     return ok({ success: true, vod, series, live });
