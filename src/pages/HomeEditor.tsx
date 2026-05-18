@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast'
 import {
   ArrowLeft, Plus, GripVertical, Trash2, Pencil,
   ChevronDown, ChevronUp, Loader2, CheckCircle2, Check,
-  Tv2, Film, Clapperboard, Sparkles, Eye, EyeOff,
+  Tv2, Film, Clapperboard, Sparkles, Eye, EyeOff, List,
 } from 'lucide-react'
 
 // ─── Metadados de exibição ────────────────────────────────────────────────────
@@ -102,7 +102,15 @@ interface HomeInfo {
   is_active: boolean
 }
 
-type TabKey = 'series' | 'movies' | 'live' | 'special'
+type TabKey = 'series' | 'movies' | 'live' | 'special' | 'playlist'
+
+interface XtreamGroup {
+  group_title: string
+  content_type: string
+  count: number
+  playlist_name: string
+  playlist_id: string
+}
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
@@ -118,6 +126,8 @@ export function HomeEditor() {
   const [editingSection, setEditingSection] = useState<Section | null>(null)
   const [editTitle,   setEditTitle]   = useState('')
   const [adding,      setAdding]      = useState<string | null>(null)
+  const [xtreamGroups, setXtreamGroups] = useState<XtreamGroup[]>([])
+  const [xtreamLoading, setXtreamLoading] = useState(false)
 
   // ── Carrega home + seções ─────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -152,7 +162,34 @@ export function HomeEditor() {
     setStatsLoading(false)
   }, [])
 
+  const fetchXtreamGroups = useCallback(async () => {
+    setXtreamLoading(true)
+    const { data } = await supabase
+      .from('playlist_content')
+      .select('group_title, content_type, playlist_id, playlists(name)')
+      .order('group_title')
+    if (data) {
+      const acc = new Map<string, XtreamGroup>()
+      for (const row of data as any[]) {
+        const key = `${row.group_title}||${row.content_type}||${row.playlist_id}`
+        if (!acc.has(key)) {
+          acc.set(key, {
+            group_title: row.group_title,
+            content_type: row.content_type,
+            count: 0,
+            playlist_name: row.playlists?.name ?? '—',
+            playlist_id: row.playlist_id,
+          })
+        }
+        acc.get(key)!.count++
+      }
+      setXtreamGroups(Array.from(acc.values()).sort((a, b) => b.count - a.count))
+    }
+    setXtreamLoading(false)
+  }, [])
+
   useEffect(() => { fetchData(); fetchStats() }, [fetchData, fetchStats])
+  useEffect(() => { if (activeTab === 'playlist') fetchXtreamGroups() }, [activeTab, fetchXtreamGroups])
 
   // ── Adicionar seção do catálogo ───────────────────────────────────────────
   async function addFromCatalog(
@@ -186,6 +223,30 @@ export function HomeEditor() {
     return sections.some(s =>
       s.config?.streaming === streaming && s.config?.content_type === contentType
     )
+  }
+
+  function isXtreamGroupInHome(groupTitle: string, contentType: string): boolean {
+    return sections.some(s =>
+      s.type === 'xtream_group' &&
+      s.config?.group_title === groupTitle &&
+      s.config?.content_type === contentType
+    )
+  }
+
+  async function addXtreamGroup(group: XtreamGroup) {
+    const key = `${group.group_title}||${group.content_type}`
+    setAdding(key)
+    const { error } = await supabase.from('home_sections').insert({
+      home_id:    id,
+      title:      group.group_title.replace(/^[^|]+\|\s*/, ''), // remove "Canais | " prefix
+      type:       'xtream_group',
+      active:     true,
+      config:     { group_title: group.group_title, content_type: group.content_type, playlist_id: group.playlist_id },
+      sort_order: sections.length,
+    })
+    if (error) toast.error('Erro ao adicionar: ' + error.message)
+    else { toast.success(`"${group.group_title}" adicionada!`); fetchData() }
+    setAdding(null)
   }
 
   // ── Ações das seções ──────────────────────────────────────────────────────
@@ -401,6 +462,90 @@ export function HomeEditor() {
       )
     }
 
+    if (activeTab === 'playlist') {
+      if (xtreamLoading) {
+        return (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 text-accent animate-spin" />
+            <span className="ml-2 text-sm text-text-muted">Carregando grupos Xtream...</span>
+          </div>
+        )
+      }
+      if (xtreamGroups.length === 0) {
+        return (
+          <div className="flex flex-col items-center justify-center py-10 text-center text-text-muted px-4">
+            <List className="w-8 h-8 mb-3 opacity-40" />
+            <p className="text-sm font-medium mb-1">Nenhum conteúdo sincronizado</p>
+            <p className="text-xs">Ative uma playlist Xtream na TV para sincronizar os grupos aqui.</p>
+          </div>
+        )
+      }
+
+      const liveGroups   = xtreamGroups.filter(g => g.content_type === 'live')
+      const movieGroups  = xtreamGroups.filter(g => g.content_type === 'movie')
+      const seriesGroups = xtreamGroups.filter(g => g.content_type === 'series')
+
+      function XtreamGroupRow({ group }: { group: XtreamGroup }) {
+        const inHome  = isXtreamGroupInHome(group.group_title, group.content_type)
+        const key     = `${group.group_title}||${group.content_type}`
+        const loading = adding === key
+        return (
+          <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+            inHome ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface hover:bg-elevated'
+          }`}>
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              group.content_type === 'live' ? 'bg-green-500' :
+              group.content_type === 'movie' ? 'bg-blue-500' : 'bg-purple-500'
+            }`} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary truncate">{group.group_title}</p>
+              <p className="text-[10px] text-text-muted">{group.playlist_name}</p>
+            </div>
+            <span className="text-xs font-mono text-text-muted bg-elevated px-1.5 py-0.5 rounded border border-border flex-shrink-0">
+              {group.count.toLocaleString('pt-BR')}
+            </span>
+            {inHome ? (
+              <span className="flex items-center gap-1 text-xs text-accent font-medium flex-shrink-0 px-2">
+                <Check className="w-3 h-3" /> Na home
+              </span>
+            ) : (
+              <button
+                onClick={() => addXtreamGroup(group)}
+                disabled={!!loading}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex-shrink-0"
+              >
+                {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                Adicionar
+              </button>
+            )}
+          </div>
+        )
+      }
+
+      return (
+        <div className="space-y-4">
+          {liveGroups.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-1.5 px-1">Canais ao Vivo</p>
+              <div className="space-y-1.5">{liveGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+            </div>
+          )}
+          {movieGroups.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5 px-1">Filmes</p>
+              <div className="space-y-1.5">{movieGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+            </div>
+          )}
+          {seriesGroups.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-1.5 px-1">Séries</p>
+              <div className="space-y-1.5">{seriesGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
+            </div>
+          )}
+        </div>
+      )
+    }
+
     return null
   }
 
@@ -432,10 +577,11 @@ export function HomeEditor() {
   const sorted = [...sections].sort((a, b) => a.sort_order - b.sort_order)
 
   const TABS: { key: TabKey; label: string; Icon: any }[] = [
-    { key: 'series',  label: 'Séries',  Icon: Clapperboard },
-    { key: 'movies',  label: 'Filmes',  Icon: Film },
-    { key: 'live',    label: 'Canais',  Icon: Tv2 },
-    { key: 'special', label: 'Especiais', Icon: Sparkles },
+    { key: 'series',   label: 'Séries',   Icon: Clapperboard },
+    { key: 'movies',   label: 'Filmes',   Icon: Film },
+    { key: 'live',     label: 'Canais',   Icon: Tv2 },
+    { key: 'special',  label: 'Especiais', Icon: Sparkles },
+    { key: 'playlist', label: 'Playlist', Icon: List },
   ]
 
   return (

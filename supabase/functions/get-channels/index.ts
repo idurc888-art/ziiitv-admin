@@ -58,12 +58,39 @@ serve(async (req) => {
     if (pairing.playlist_id) {
       const { data: playlist } = await supabase
         .from('playlists')
-        .select('url_original')
+        .select('url_original, presentation_mode')
         .eq('id', pairing.playlist_id)
         .single()
 
       if (playlist?.url_original && playlist.url_original.includes('get.php?username=')) {
-        return new Response(JSON.stringify({ xtream: true, m3u_url: playlist.url_original }), {
+        const presentationMode: string = (playlist as any).presentation_mode ?? 'auto'
+        let homeSections: any[] = []
+
+        if (presentationMode === 'curated') {
+          // Busca seções da home ativa
+          const { data: activeHome } = await supabase
+            .from('homes')
+            .select('id')
+            .eq('is_active', true)
+            .single()
+
+          if (activeHome?.id) {
+            const { data: sections } = await supabase
+              .from('home_sections')
+              .select('id, title, type, sort_order, active, config')
+              .eq('home_id', activeHome.id)
+              .eq('active', true)
+              .order('sort_order')
+            homeSections = sections ?? []
+          }
+        }
+
+        return new Response(JSON.stringify({
+          xtream: true,
+          m3u_url: playlist.url_original,
+          presentation_mode: presentationMode,
+          home_sections: homeSections,
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
