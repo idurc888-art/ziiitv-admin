@@ -280,25 +280,24 @@ export function HomeEditor() {
   async function importFromXtream(playlist: XtreamPlaylist) {
     setImporting(true)
     try {
-      const u = new URL(playlist.url_original)
-      const host     = u.origin
-      const username = u.searchParams.get('username') || ''
-      const password = u.searchParams.get('password') || ''
-      const api      = `${host}/player_api.php?username=${username}&password=${password}`
+      // Usa Edge Function como proxy — evita CORS e IPs de datacenter bloqueados
+      const { data: result, error: fnErr } = await supabase.functions.invoke(
+        `proxy-xtream-categories?playlist_id=${playlist.id}`,
+        { method: 'GET' } as any,
+      )
+      if (fnErr) throw fnErr
 
-      const [liveCats, vodCats, seriesCats] = await Promise.all([
-        fetch(`${api}&action=get_live_categories`).then(r => r.json()),
-        fetch(`${api}&action=get_vod_categories`).then(r => r.json()),
-        fetch(`${api}&action=get_series_categories`).then(r => r.json()),
-      ])
+      const liveCats   = Array.isArray(result?.live)   ? result.live   : []
+      const vodCats    = Array.isArray(result?.vod)    ? result.vod    : []
+      const seriesCats = Array.isArray(result?.series) ? result.series : []
 
       const rows: any[] = [
-        ...(Array.isArray(liveCats)   ? liveCats   : []).map((c: any) => ({ playlist_id: playlist.id, content_type: 'live',   name: c.category_name, group_title: c.category_name, streams: [] })),
-        ...(Array.isArray(vodCats)    ? vodCats    : []).map((c: any) => ({ playlist_id: playlist.id, content_type: 'movie',  name: c.category_name, group_title: c.category_name, streams: [] })),
-        ...(Array.isArray(seriesCats) ? seriesCats : []).map((c: any) => ({ playlist_id: playlist.id, content_type: 'series', name: c.category_name, group_title: c.category_name, streams: [] })),
-      ].filter(r => r.name)
+        ...liveCats.map((c: any)   => ({ playlist_id: playlist.id, content_type: 'live',   name: c.category_name, group_title: c.category_name, streams: [] })),
+        ...vodCats.map((c: any)    => ({ playlist_id: playlist.id, content_type: 'movie',  name: c.category_name, group_title: c.category_name, streams: [] })),
+        ...seriesCats.map((c: any) => ({ playlist_id: playlist.id, content_type: 'series', name: c.category_name, group_title: c.category_name, streams: [] })),
+      ].filter((r: any) => r.name)
 
-      if (rows.length === 0) throw new Error('Nenhum grupo recebido — o servidor pode ter bloqueado a requisição por CORS')
+      if (rows.length === 0) throw new Error('Nenhum grupo retornado — verifique as credenciais ou tente abrir a lista na TV')
 
       const BATCH = 500
       for (let i = 0; i < rows.length; i += BATCH) {
@@ -317,11 +316,7 @@ export function HomeEditor() {
       fetchXtreamPlaylists()
       fetchXtreamGroups(playlist.id)
     } catch (err: any) {
-      if (err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
-        toast.error('Servidor bloqueou requisição (CORS). Abra a lista na TV com o código para sincronizar.')
-      } else {
-        toast.error(err.message || 'Erro ao importar')
-      }
+      toast.error(err.message || 'Erro ao importar — tente abrir a lista na TV com o código')
     } finally {
       setImporting(false)
     }
