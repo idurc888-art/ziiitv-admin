@@ -214,20 +214,35 @@ export function UploadPlaylist() {
         setStats({ raw: rawChannels.length, series: seriesCount, movies: moviesCount, live: liveCount, inserted, discarded: normStats.discarded, linked: 0 })
         setProgress(90)
 
-      // ── Modo Xtream — credenciais salvas, TV busca direto do servidor ─────────
+      // ── Modo Xtream — baixa M3U e processa igual URL normal ─────────────────
       } else if (xtream) {
         addLog(`🎯 Xtream: ${xtream.host}`)
-        addLog('Credenciais salvas. A TV vai buscar os canais direto do servidor Xtream.')
-        setProgress(50)
+        addLog('Baixando catálogo M3U e processando contra o banco de títulos...')
+        setPhase('processing')
+        setProgress(20)
 
-        await (supabase as any)
-          .from('playlists')
-          .update({ status: 'ready', processed_at: new Date().toISOString() })
-          .eq('id', playlist.id)
+        const resp = await fetch('/api/process_playlist', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ playlist_id: playlist.id, url: urlKey }),
+        })
 
-        setStats({ raw: 0, series: 0, movies: 0, live: 0, inserted: 0, discarded: 0, linked: 0 })
+        if (cancelledRef.current) return
+
+        const result = await resp.json()
+        if (!resp.ok || !result.success) {
+          throw new Error(result.error || `Erro ${resp.status}`)
+        }
+
+        if (result.skipped) {
+          toast('Lista idêntica — nada mudou')
+          navigate(`/playlists/${playlist.id}`)
+          return
+        }
+
+        setStats(result)
         setProgress(90)
-        addLog('✅ Pronto! Use o código abaixo na TV para carregar a lista Xtream.')
+        addLog('Processamento finalizado.')
 
       // ── Modo URL M3U normal ───────────────────────────────────────────────────
       } else {

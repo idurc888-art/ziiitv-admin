@@ -387,8 +387,18 @@ def build_enrich_map(series, movies):
     if not TMDB_KEY:
         return {}
 
-    # Load existing canonical_titles for fast local lookup
-    canon_rows = sb('GET', 'canonical_titles?select=id,title,alt_titles,tmdb_id&limit=2000', prefer='')
+    # Load ALL canonical_titles for fast local lookup (paginated — DB has 15k+ rows)
+    canon_rows = []
+    _offset = 0
+    _page = 1000
+    while True:
+        batch = sb('GET', f'canonical_titles?select=id,title,alt_titles,tmdb_id&limit={_page}&offset={_offset}', prefer='')
+        if not batch:
+            break
+        canon_rows.extend(batch)
+        if len(batch) < _page:
+            break
+        _offset += _page
     title_to_id  = {}
     tmdbid_to_id = {}
     for row in (canon_rows or []):
