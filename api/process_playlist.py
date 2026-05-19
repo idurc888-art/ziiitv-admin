@@ -138,6 +138,8 @@ def clean_title(raw):
     s = re.sub(r'\b(VOD|VIP|PREMIUM|PLUS|ULTRA|ONLINE)\b', '', s, flags=re.I)
     s = re.sub(r'[|_.\\-–—:]+', ' ', s)
     s = re.sub(r'\s{2,}', ' ', s).strip()
+    # Colapsa "A R C H I E" (3+ letras únicas separadas por espaço) → "ARCHIE" antes do title()
+    s = re.sub(r'\b[A-Za-z](?: [A-Za-z]){2,}\b', lambda m: m.group(0).replace(' ', ''), s)
     return s.title() if s else ''
 
 
