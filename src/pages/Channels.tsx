@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Search, Copy, Tv2, Film, Clapperboard, ChevronLeft, ChevronRight, Sparkles, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { classNames } from '../lib/utils'
-import { supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 interface DbChannel {
   id: string
@@ -55,7 +55,7 @@ export function Channels() {
 
   const fetchChannels = useCallback(async (searchVal: string, type: string, enrichedVal: string, pg: number) => {
     setLoading(true)
-    let q = supabaseAdmin
+    let q = supabase
       .from('channels')
       .select('id, name, group_name, logo_url, content_type, streaming, canonical_id, streams', { count: 'exact' })
       .order('name')

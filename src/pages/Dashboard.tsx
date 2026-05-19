@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Header } from '../components/layout/Header'
 import { Stat } from '../components/ui/Stat'
 import { Card } from '../components/ui/Card'
 import { WatchActivityChart } from '../components/charts/WatchActivityChart'
 import { Users, List, Radio, Clock, PlayCircle, Sparkles, AlertCircle } from 'lucide-react'
 import { formatRelativeTime, formatDuration } from '../lib/utils'
-import { supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -57,16 +57,16 @@ export function Dashboard() {
         canonicalRes,
         enrichQueueRes,
       ] = await Promise.all([
-        supabaseAdmin.from('users').select('*', { count: 'exact', head: true }),
-        supabaseAdmin.from('playlists').select('*', { count: 'exact', head: true })
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('playlists').select('*', { count: 'exact', head: true })
           .eq('status', 'ready').gte('processed_at', todayISO),
-        supabaseAdmin.from('channels').select('*', { count: 'exact', head: true }),
-        supabaseAdmin.from('watch_events').select('duration_seconds').gte('watched_at', todayISO),
-        supabaseAdmin.from('watch_events').select('watched_at, duration_seconds').gte('watched_at', sevenDaysISO),
-        supabaseAdmin.from('watch_events').select('id, channel_name, user_id, duration_seconds, watched_at')
+        supabase.from('channels').select('*', { count: 'exact', head: true }),
+        supabase.from('watch_history').select('duration_seconds').gte('watched_at', todayISO),
+        supabase.from('watch_history').select('watched_at, duration_seconds').gte('watched_at', sevenDaysISO),
+        supabase.from('watch_history').select('id, channel_name, user_id, duration_seconds, watched_at')
           .order('watched_at', { ascending: false }).limit(5),
-        supabaseAdmin.from('canonical_titles').select('*', { count: 'exact', head: true }),
-        supabaseAdmin.from('channels').select('*', { count: 'exact', head: true })
+        supabase.from('canonical_titles').select('*', { count: 'exact', head: true }),
+        supabase.from('channels').select('*', { count: 'exact', head: true })
           .is('canonical_id', null).in('content_type', ['series', 'movie']),
       ])
 
@@ -104,7 +104,7 @@ export function Dashboard() {
       const userIds = [...new Set(events.map(e => e.user_id).filter(Boolean))]
       const emailMap: Record<string, string> = {}
       if (userIds.length > 0) {
-        const { data: userRows } = await supabaseAdmin.from('users').select('id, email').in('id', userIds)
+        const { data: userRows } = await supabase.from('users').select('id, email').in('id', userIds)
         for (const u of (userRows || [])) emailMap[u.id] = u.email
       }
       setActivity(events.map(e => ({

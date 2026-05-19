@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Search, Eye, Calendar, AlertCircle } from 'lucide-react'
 import { formatRelativeTime } from '../lib/utils'
-import { supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { User, UserRole } from '../types'
 
@@ -23,8 +23,8 @@ export function Users() {
   useEffect(() => {
     async function load() {
       const [usersRes, playlistsRes] = await Promise.all([
-        supabaseAdmin.from('users').select('id, email, role, created_at').order('created_at', { ascending: false }).limit(200),
-        supabaseAdmin.from('playlists').select('user_id, processed_at').eq('status', 'ready'),
+        supabase.from('users').select('id, email, role, created_at').order('created_at', { ascending: false }).limit(200),
+        supabase.from('playlists').select('user_id, processed_at').eq('status', 'ready'),
       ])
 
       const usersData = (usersRes.data || []) as Array<{ id: string; email: string; role: string; created_at: string }>

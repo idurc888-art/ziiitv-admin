@@ -4,7 +4,7 @@ import { Table } from '../components/ui/Table'
 import { Search, MonitorPlay, Tv2 } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatRelativeTime, formatDuration } from '../lib/utils'
-import { supabaseAdmin } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 interface WatchRow {
   id: number
@@ -22,8 +22,8 @@ export function WatchHistory() {
 
   useEffect(() => {
     async function load() {
-      const { data: rawEvents } = await supabaseAdmin
-        .from('watch_events')
+      const { data: rawEvents } = await supabase
+        .from('watch_history')
         .select('id, user_id, channel_name, duration_seconds, progress_pct, watched_at')
         .order('watched_at', { ascending: false })
         .limit(200)
@@ -41,7 +41,7 @@ export function WatchHistory() {
       const userIds = [...new Set(events.map(e => e.user_id).filter(Boolean))]
       const emailMap: Record<string, string> = {}
       if (userIds.length > 0) {
-        const { data: rawUsers } = await supabaseAdmin
+        const { data: rawUsers } = await supabase
           .from('users')
           .select('id, email')
           .in('id', userIds)
