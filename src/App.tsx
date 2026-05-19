@@ -23,6 +23,7 @@ import { EnrichIndex } from './pages/EnrichIndex'
 import { LinkPage } from './pages/LinkPage'
 import { Homes } from './pages/Homes'
 import { HomeEditor } from './pages/HomeEditor'
+import { EpgImport } from './pages/EpgImport'
 
 import { ClientDashboard } from './pages/client/ClientDashboard'
 import { Navigate } from 'react-router-dom'
@@ -91,6 +92,7 @@ export function App() {
                 <Route path="/admin/enrich" element={<EnrichIndex />} />
                 <Route path="/admin/enrich/:id" element={<EnrichQueue />} />
                 <Route path="/admin/watch-history" element={<WatchHistory />} />
+                <Route path="/admin/epg" element={<EpgImport />} />
               </Route>
             </Route>
 

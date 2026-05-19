@@ -14,6 +14,7 @@ import {
   LayoutTemplate,
   Sparkles,
   Link2,
+  CalendarDays,
 } from 'lucide-react'
 
 const ADMIN_GROUPS = [
@@ -29,6 +30,7 @@ const ADMIN_GROUPS = [
       { to: '/admin/playlists',  icon: List,      label: 'Playlists' },
       { to: '/admin/channels',   icon: Radio,     label: 'Canais' },
       { to: '/admin/enrich',     icon: Sparkles,  label: 'Enriquecimento' },
+      { to: '/admin/epg',        icon: CalendarDays, label: 'EPG (Grade)' },
     ],
   },
   {
