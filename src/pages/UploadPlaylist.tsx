@@ -274,6 +274,27 @@ export function UploadPlaylist() {
         addLog('Processamento em nuvem finalizado.')
       }
 
+      // ── Enriquecimento automático via TMDB (todos os modos) ──────────────────
+      if (playlistIdRef.current) {
+        setPhase('enriching')
+        addLog('Vinculando títulos ao TMDB...')
+        let enrichOffset = 0
+        let enrichTotal  = 0
+        let iterations   = 0
+        while (iterations < 200) {
+          const { data: eData, error: eErr } = await supabase.functions.invoke('enrich-unmatched', {
+            body: { playlist_id: playlistIdRef.current, offset: enrichOffset },
+          })
+          if (eErr || !eData) { addLog(`⚠️ Enriquecimento parcialmente concluído.`); break }
+          enrichTotal += eData.channelsUpdated ?? 0
+          addLog(`🔍 TMDB: ${enrichTotal.toLocaleString('pt-BR')} canais vinculados (${eData.cacheHits ?? 0} cache, ${eData.tmdbHits ?? 0} novos)`)
+          if (eData.done) break
+          enrichOffset = eData.nextOffset ?? 0
+          iterations++
+        }
+        setProgress(97)
+      }
+
       // ── Gera código de pareamento (todos os modos) ────────────────────────────
       addLog('Gerando código de pareamento para acesso na TV...')
       setPhase('generating')
