@@ -372,6 +372,7 @@ export function cleanChannelName(raw: string): string {
     .replace(/\b(4K|UHD|2160[Pp]?|FHD|FULL[\s.-]?HD|1080[Pp]?|HD|720[Pp]?|SD|480[Pp]?|360[Pp]?|H\.?265|H\.?264|HEVC|AVC|HDR|SDR|VOD|LEG|DUB|DUBLADO|LEGENDADO|NACIONAL|ORIGINAL|PT-BR|BR|VIP|PREMIUM|PLUS|PACK)\b/gi, '')
     .replace(/^\s*(?:CH|CANAL|TV)?\s*\d{1,4}\s*[-|.:_]\s*/gi, '')
     .replace(/\b(19|20)\d{2}\b/g, '')
+    .replace(/\bS\d{1,2}E\d{1,4}\b/gi, '')
     .replace(/\b(S|T|EP|PARTE|PART|VOL)\s*\d+\b/gi, '')
     .replace(/[|_.\-–—:]+/g, ' ')
     .replace(/\s{2,}/g, ' ')
@@ -399,6 +400,7 @@ export function extractEpisode(name: string): { cleanName: string; episode: stri
 export function slugify(name: string): string {
   return name
     .toLowerCase()
+    .replace(/['''ʼ]/g, '') // remove apóstrofos antes de normalizar
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
