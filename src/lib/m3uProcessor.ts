@@ -328,6 +328,20 @@ export function extractGroupInfo(group: string | null): GroupInfo {
     return { ...BASE_GROUP, contentType: 'series', streaming }
   }
 
+  // ── NOVELAS / DORAMAS / ANIMES — sempre séries, independente do prefixo ──
+  if (/novel[ao]|telenov/i.test(g)) {
+    return { ...BASE_GROUP, contentType: 'series', streaming: 'novelas' }
+  }
+  if (/dorama|k[\s.-]?drama/i.test(g)) {
+    return { ...BASE_GROUP, contentType: 'series', streaming: 'doramas' }
+  }
+  if (/\banimes?\b/i.test(g)) {
+    return { ...BASE_GROUP, contentType: 'series', streaming: 'crunchyroll' }
+  }
+  if (/\bstand[\s.-]?up\b|\bcomedy[\s.-]?special\b/i.test(g)) {
+    return { ...BASE_GROUP, contentType: 'standup', genre: 'standup' }
+  }
+
   // ── FILMES — vem ANTES de live para capturar "Canais | Filmes [24H]" ──────
   if (/filmes?|cinema|lan[çc]amentos?|cine/i.test(g)) {
     const suffix = g.replace(/filmes?|cinema|lan[çc]amentos?|cine/ig, '').replace(/^[|\/\s:\-]+|[|\/\s:\-]+$/g, '')
@@ -440,6 +454,12 @@ export function normalizeStreams(rawChannels: RawChannel[]): { channels: Channel
   for (const raw of deduped) {
     const gi = extractGroupInfo(raw.group)
     if (gi.discard) { discarded++; continue }
+
+    // Override: nome com SxxExx é sempre série, mesmo que o grupo diga filme
+    if (gi.contentType === 'movie' && /\bS\d{1,2}E\d{1,4}\b/i.test(raw.name)) {
+      gi.contentType = 'series'
+      if (!gi.streaming) gi.streaming = normalizeStreaming(raw.group || '') || null
+    }
 
     // ── LIVE TV ───────────────────────────────────────────────────────────────
     if (gi.contentType === 'live') {
