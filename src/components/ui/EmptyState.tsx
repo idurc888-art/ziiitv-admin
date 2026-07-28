@@ -1,4 +1,3 @@
-import React from 'react'
 import { classNames } from '../../lib/utils'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from './Button'

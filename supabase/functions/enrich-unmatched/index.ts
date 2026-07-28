@@ -10,7 +10,8 @@ const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const TMDB_KEY      = Deno.env.get('TMDB_API_KEY')!
 
-const BATCH_SIZE    = 150   // unique titles por invocação
+const DB_PAGE       = 5000  // canais por página do banco
+const MAX_TMDB      = 300   // máx TMDB calls por invocação (evita timeout)
 const TMDB_DELAY_MS = 260   // ~3.8 req/s → seguro abaixo do limite 40/10s
 const TMDB_IMG      = 'https://image.tmdb.org/t/p/'
 
@@ -78,7 +79,7 @@ serve(async (req) => {
     // 1. Busca canais sem canonical_id desta playlist (séries + filmes)
     const channels: Array<{id: string; name: string; content_type: string; streaming: string | null}> =
       await db(
-        `channels?playlist_id=eq.${playlist_id}&canonical_id=is.null&content_type=in.(series,movie)&select=id,name,content_type,streaming&limit=10000&offset=${offset}`
+        `channels?playlist_id=eq.${playlist_id}&canonical_id=is.null&content_type=in.(series,movie)&select=id,name,content_type,streaming&limit=${DB_PAGE}&offset=${offset}`
       )
 
     if (channels.length === 0) {
@@ -108,9 +109,9 @@ serve(async (req) => {
       }
     }
 
-    // 3. Slice para o lote atual
-    const entries = [...titleMap.values()].slice(0, BATCH_SIZE)
-    const totalUnique = titleMap.size
+    // 3. Todos os títulos únicos desta página — sem limite artificial
+    const entries = [...titleMap.values()]
+    const totalUnique = entries.length
 
     // 4. Verifica slug_identity_map em batch
     const slugsToCheck = entries.map(e => e.slug)
@@ -119,12 +120,13 @@ serve(async (req) => {
       : []
     const cacheMap = new Map(cached.map(c => [c.slug, c.canonical_id]))
 
-    // 5. Processa cada título único
+    // 5. Processa cada título único (para no MAX_TMDB para não estourar timeout)
     const updates: Array<{channelIds: string[]; canonicalId: string}> = []
     const newCanonicals: unknown[] = []
     const newSlugs: unknown[] = []
     let tmdbHits = 0
     let cacheHits = 0
+    let tmdbCallsMade = 0
 
     for (const entry of entries) {
       // 5a. Cache hit
@@ -147,9 +149,11 @@ serve(async (req) => {
         continue
       }
 
-      // 5c. TMDB search
+      // 5c. TMDB search — para se atingiu o limite de calls desta invocação
+      if (tmdbCallsMade >= MAX_TMDB) continue
       await new Promise(r => setTimeout(r, TMDB_DELAY_MS))
       const result = await tmdbSearch(entry.baseName, entry.contentType as 'series' | 'movie')
+      tmdbCallsMade++
       if (!result) continue
 
       const tmdbTitle    = (entry.contentType === 'series' ? result.name : result.title) as string || entry.baseName
@@ -211,13 +215,18 @@ serve(async (req) => {
 
     // 6. Salva novos canonical_titles em batch
     if (newCanonicals.length > 0) {
-      await db('canonical_titles', 'POST', newCanonicals, { Prefer: 'return=minimal,resolution=ignore-duplicates' })
+      await db('canonical_titles', 'POST', newCanonicals, { Prefer: 'return=minimal' })
     }
 
-    // 7. Atualiza slug_identity_map em batch
+    // 7. Atualiza slug_identity_map em batch — dedup por slug antes de inserir
     if (newSlugs.length > 0) {
-      for (let i = 0; i < newSlugs.length; i += 500) {
-        await db('slug_identity_map', 'POST', newSlugs.slice(i, i + 500), { Prefer: 'return=minimal,resolution=merge-duplicates' })
+      const slugsSeen = new Map<string, unknown>()
+      for (const s of newSlugs) {
+        if (!slugsSeen.has((s as any).slug)) slugsSeen.set((s as any).slug, s)
+      }
+      const dedupedSlugs = [...slugsSeen.values()]
+      for (let i = 0; i < dedupedSlugs.length; i += 300) {
+        await db('slug_identity_map', 'POST', dedupedSlugs.slice(i, i + 300), { Prefer: 'return=minimal,resolution=ignore-duplicates' })
       }
     }
 
@@ -242,8 +251,9 @@ serve(async (req) => {
       }
     }
 
-    const hasMore = totalUnique > BATCH_SIZE
-    const nextOffset = hasMore ? offset + channels.length : null
+    // Avança para a próxima página de canais do banco
+    const hasMore = channels.length === DB_PAGE
+    const nextOffset = hasMore ? offset + DB_PAGE : null
 
     return new Response(JSON.stringify({
       done:             !hasMore,

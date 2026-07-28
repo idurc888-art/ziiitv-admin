@@ -1,0 +1,19 @@
+#EXTM3U
+#EXTINF:-1 group-title="Filmes | Lançamentos",Moana 2 [FHD]
+https://provider.example/movie/101.mp4
+#EXTINF:-1 group-title="Filmes | Clássicos",It (1990)
+https://provider.example/movie/102.mp4
+#EXTINF:-1 group-title="Filmes | Ficção",Blade Runner 2049 4K
+https://provider.example/movie/103.mp4
+#EXTINF:-1 group-title="Filmes | Drama",Duna - 2021
+https://provider.example/movie/104.mp4
+#EXTINF:-1 group-title="Séries | HBO Max",The Show S01E01 DUB
+https://provider.example/series/201.mkv
+#EXTINF:-1 group-title="Séries | HBO Max",The Show S01E02 LEG
+https://provider.example/series/202.mkv
+#EXTINF:-1 tvg-id="premiere-2" group-title="Canais | Esportes",Premiere 2 HD
+https://provider.example/live/301.ts
+#EXTINF:-1 group-title="Filmes e Séries",Catálogo sem tipo
+https://provider.example/vod/401.mp4
+#EXTINF:-1 group-title="Filmes",Entrada maliciosa
+javascript:alert(1)

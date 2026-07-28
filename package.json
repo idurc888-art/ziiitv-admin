@@ -7,7 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:playlist-domain": "node --import tsx --test tests/playlist-domain/*.test.ts",
+    "test:playlist-migration": "bash scripts/validate-playlist-migration.sh",
+    "test:supabase-bootstrap": "bash scripts/validate-full-supabase-bootstrap.sh",
+    "verify:qi220:remote:pre": "node scripts/verify-qi220-remote.mjs pre",
+    "verify:qi220:remote:post": "node scripts/verify-qi220-remote.mjs post",
+    "worker:playlist:once": "node --import tsx worker/playlist-import-worker.ts",
+    "worker:playlist": "WORKER_MODE=continuous node --import tsx worker/playlist-import-worker.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",

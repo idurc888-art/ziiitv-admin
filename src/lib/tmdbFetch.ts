@@ -1,6 +1,5 @@
 const TMDB_KEY: string =
   (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_TMDB_API_KEY : undefined)
-  ?? (typeof process !== 'undefined' ? process.env.VITE_TMDB_API_KEY : undefined)
   ?? 'b68afbadedebf0889f00a0cf577d3e5a'
 
 /**
@@ -88,10 +87,27 @@ export async function getDetailedTMDBData(tmdbId: number, type: 'movie' | 'tv' |
       director,
       age_rating: age_rating === '' ? null : age_rating,
       duration,
-      trailer_url
+      trailer_url,
+      logo_url: await fetchLogoUrl(tmdbId, actualType),
     }
   } catch (err) {
     console.error('Falha ao buscar detalhes TMDB:', err)
+    return null
+  }
+}
+
+async function fetchLogoUrl(tmdbId: number, type: 'movie' | 'tv'): Promise<string | null> {
+  try {
+    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/images?api_key=${TMDB_KEY}&include_image_language=pt,en,null`
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const data = await res.json()
+    const logos = data.logos || []
+    const best = logos.find((l: any) => l.iso_639_1 === 'pt')
+      || logos.find((l: any) => l.iso_639_1 === 'en')
+      || logos[0]
+    return best ? `https://image.tmdb.org/t/p/w500${best.file_path}` : null
+  } catch {
     return null
   }
 }

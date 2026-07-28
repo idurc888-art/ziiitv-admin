@@ -63,8 +63,6 @@ interface ReviewItem {
   score: number
 }
 
-type BatchSize = 10 | 20 | 50 | 100
-
 export function EnrichQueue() {
   const { id: playlistId } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -104,7 +102,7 @@ export function EnrichQueue() {
           .not('group_name', 'is', null)
           .range(from, from + limit - 1)
         if (error || !data || data.length === 0) break
-        data.forEach(d => { if (d.group_name) allGroups.add(d.group_name) })
+        data.forEach((d: { group_name: string | null }) => { if (d.group_name) allGroups.add(d.group_name) })
         if (data.length < limit) break
         from += limit
       }

@@ -1,4 +1,3 @@
-import React from 'react'
 import { Card } from '../ui/Card'
 import {
   LineChart,
@@ -38,13 +37,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function WatchActivityChart({ data, loading, className }: WatchActivityChartProps) {
   return (
-    <Card padding="lg" className={classNames('flex flex-col', className)}>
+    <Card padding="lg" className={classNames('flex min-w-0 flex-col', className)}>
       <div className="mb-6">
         <h3 className="text-lg font-medium text-text-primary">Atividade de Visualização</h3>
         <p className="text-sm text-text-secondary">Horas assistidas nos últimos 7 dias</p>
       </div>
 
-      <div className="flex-1 w-full h-[300px] min-h-[300px]">
+      <div className="h-[300px] min-h-[300px] min-w-0 w-full">
         {loading ? (
           <div className="w-full h-full skeleton rounded-lg" />
         ) : data.length === 0 ? (
@@ -52,7 +51,7 @@ export function WatchActivityChart({ data, loading, className }: WatchActivityCh
             <span className="text-text-muted text-sm">Sem dados suficientes</span>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={300} minWidth={1} minHeight={300} initialDimension={{ width: 600, height: 300 }}>
             <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" vertical={false} />
               <XAxis 

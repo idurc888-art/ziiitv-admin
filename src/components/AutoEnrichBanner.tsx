@@ -74,7 +74,7 @@ export function AutoEnrichBanner({ playlistId }: Props) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) {
           setJob(data)
           setProcessed(data.processed_count || 0)

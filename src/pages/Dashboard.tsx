@@ -71,7 +71,7 @@ export function Dashboard() {
       ])
 
       // Stats
-      const watchSecondsToday = (watchTodayRes.data || []).reduce((s, e) => s + (e.duration_seconds || 0), 0)
+      const watchSecondsToday = (watchTodayRes.data || []).reduce((s: number, e: { duration_seconds?: number | null }) => s + (e.duration_seconds || 0), 0)
 
       setStats({
         users:           usersRes.count   ?? 0,
@@ -101,13 +101,13 @@ export function Dashboard() {
 
       // Recent activity — fetch user emails separately to avoid FK dependency
       const events = recentRes.data || []
-      const userIds = [...new Set(events.map(e => e.user_id).filter(Boolean))]
+      const userIds = [...new Set(events.map((e: any) => e.user_id).filter(Boolean))]
       const emailMap: Record<string, string> = {}
       if (userIds.length > 0) {
         const { data: userRows } = await supabase.from('users').select('id, email').in('id', userIds)
         for (const u of (userRows || [])) emailMap[u.id] = u.email
       }
-      setActivity(events.map(e => ({
+      setActivity(events.map((e: any) => ({
         id:               e.id,
         channel_name:     e.channel_name,
         user_email:       emailMap[e.user_id] || '—',

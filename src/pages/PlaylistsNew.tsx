@@ -22,6 +22,13 @@ interface Playlist {
   presentation_mode: 'auto' | 'curated' | null
   last_synced_at: string | null
   content_count: number | null
+  home_id: string | null
+}
+
+interface HomeOption {
+  id: string
+  name: string
+  is_active: boolean
 }
 
 interface PlaylistStats {
@@ -72,6 +79,8 @@ export function Playlists() {
   const [codeCopied,    setCodeCopied]   = useState<string | null>(null)
   const [generatingCode, setGeneratingCode] = useState<string | null>(null)
   const [togglingMode,  setTogglingMode] = useState<string | null>(null)
+  const [homes,         setHomes]        = useState<HomeOption[]>([])
+  const [assigningHome, setAssigningHome] = useState<string | null>(null)
 
   const loadPlaylists = useCallback(async () => {
     setLoading(true)
@@ -79,16 +88,18 @@ export function Playlists() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Não autenticado')
 
-      const [{ data: pls }, { data: codes }] = await Promise.all([
+      const [{ data: pls }, { data: codes }, { data: homeRows }] = await Promise.all([
         supabase.from('playlists')
-          .select('id, url_original, status, channel_count, processed_at, created_at, error_message, presentation_mode, last_synced_at, content_count')
+          .select('id, url_original, status, channel_count, processed_at, created_at, error_message, presentation_mode, last_synced_at, content_count, home_id')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         supabase.from('pairing_codes')
           .select('code, playlist_id')
           .eq('user_id', user.id)
           .gt('expires_at', new Date().toISOString()),
+        supabase.from('homes').select('id, name, is_active').order('name'),
       ])
+      setHomes(homeRows || [])
 
       // Mapeia playlist_id → código
       const map: Record<string, string> = {}
@@ -97,7 +108,7 @@ export function Playlists() {
       }
       setCodesMap(map)
 
-      const list: Playlist[] = (pls || []).map(pl => ({ ...pl }))
+      const list: Playlist[] = (pls || []).map((pl: Playlist) => ({ ...pl }))
       setPlaylists(list)
 
       // Inicializa loading state para todas as playlists prontas
@@ -177,12 +188,29 @@ export function Playlists() {
     }
   }
 
+  const handleAssignHome = async (pl: Playlist, homeId: string) => {
+    setAssigningHome(pl.id)
+    try {
+      const { error } = await supabase
+        .from('playlists')
+        .update({ home_id: homeId || null })
+        .eq('id', pl.id)
+      if (error) throw error
+      setPlaylists(prev => prev.map(p => p.id === pl.id ? { ...p, home_id: homeId || null } : p))
+      toast.success(homeId ? 'Home vinculada a esta playlist' : 'Voltou a usar a Home padrão (ativa globalmente)')
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao vincular Home')
+    } finally {
+      setAssigningHome(null)
+    }
+  }
+
   const handleDelete = async (playlistId: string) => {
     if (!confirm('Deletar playlist? Remove TODOS os canais associados. Não pode ser desfeito!')) return
     setDeleting(playlistId)
     try {
       const { data: channelRows } = await supabase.from('channels').select('id').eq('playlist_id', playlistId)
-      const channelIds = channelRows?.map(c => c.id) ?? []
+      const channelIds = channelRows?.map((c: { id: string }) => c.id) ?? []
       if (channelIds.length > 0) {
         await supabase.from('watch_events').update({ channel_id: null }).in('channel_id', channelIds)
       }
@@ -300,6 +328,23 @@ export function Playlists() {
                               : <LayoutList className="w-3 h-3" />}
                           {isCurated ? 'Curado' : 'Auto'}
                         </button>
+                      )}
+                      {/* Home vinculada — só faz sentido em modo curado */}
+                      {isXtream && isCurated && (
+                        <select
+                          value={pl.home_id ?? ''}
+                          disabled={assigningHome === pl.id}
+                          onChange={e => handleAssignHome(pl, e.target.value)}
+                          title="Qual Home (organização de seções) esta playlist usa. Vazio = usa a Home ativa globalmente."
+                          className="px-2 py-0.5 text-xs rounded-full border bg-elevated border-border text-text-secondary hover:bg-surface transition-colors focus:outline-none focus:border-accent"
+                        >
+                          <option value="">Home padrão (ativa)</option>
+                          {homes.map(h => (
+                            <option key={h.id} value={h.id}>
+                              {h.name}{h.is_active ? ' · ativa' : ''}
+                            </option>
+                          ))}
+                        </select>
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">

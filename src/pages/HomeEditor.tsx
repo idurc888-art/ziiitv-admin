@@ -6,6 +6,7 @@ import {
   ArrowLeft, Plus, GripVertical, Trash2, Pencil,
   ChevronDown, ChevronUp, Loader2, CheckCircle2, Check,
   Tv2, Film, Clapperboard, Sparkles, Eye, EyeOff, List,
+  type LucideIcon,
 } from 'lucide-react'
 
 // ─── Metadados de exibição ────────────────────────────────────────────────────
@@ -93,7 +94,7 @@ interface Section {
   type: string
   sort_order: number
   active: boolean
-  config: any
+  config: { streaming?: string; content_type?: string; group_title?: string; playlist_id?: string } | null
 }
 
 interface HomeInfo {
@@ -112,6 +113,13 @@ interface XtreamGroup {
   playlist_id: string
 }
 
+interface PlaylistGroupCountRow {
+  group_title: string
+  content_type: string
+  count: number | string
+  playlist_id: string
+}
+
 interface XtreamPlaylist {
   id: string
   url_original: string
@@ -119,6 +127,7 @@ interface XtreamPlaylist {
   content_count: number | null
   presentation_mode: 'auto' | 'curated'
   home_id: string | null
+  active_import_id: string | null
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -178,20 +187,24 @@ export function HomeEditor() {
   const fetchXtreamPlaylists = useCallback(async () => {
     const { data } = await supabase
       .from('playlists')
-      .select('id, url_original, last_synced_at, content_count, presentation_mode, home_id')
-      .ilike('url_original', '%get.php?username=%')
+      .select('id, url_original, last_synced_at, content_count, presentation_mode, home_id, active_import_id')
+      .eq('status', 'ready')
       .order('created_at', { ascending: false })
-    const list = (data || []) as XtreamPlaylist[]
+    const list = ((data || []) as XtreamPlaylist[]).filter(playlist =>
+      Boolean(playlist.active_import_id) || playlist.url_original.includes('get.php?username=')
+    )
     setXtreamPlaylists(list)
     setSelectedPid(prev => prev ?? (list[0]?.id || null))
   }, [])
 
   const fetchXtreamGroups = useCallback(async (pid: string) => {
     setXtreamLoading(true)
-    const { data, error } = await supabase.rpc('get_playlist_group_counts', { p_playlist_id: pid })
+    const playlist = xtreamPlaylists.find(item => item.id === pid)
+    const rpcName = playlist?.active_import_id ? 'get_active_playlist_group_counts' : 'get_playlist_group_counts'
+    const { data, error } = await supabase.rpc(rpcName, { p_playlist_id: pid })
     if (error) console.error('[HomeEditor] fetchXtreamGroups error:', error)
     if (data) {
-      setXtreamGroups((data as any[]).map(row => ({
+      setXtreamGroups((data as PlaylistGroupCountRow[]).map(row => ({
         group_title:  row.group_title,
         content_type: row.content_type,
         count:        Number(row.count),
@@ -200,7 +213,7 @@ export function HomeEditor() {
       })))
     }
     setXtreamLoading(false)
-  }, [])
+  }, [xtreamPlaylists])
 
   useEffect(() => { fetchData(); fetchStats() }, [fetchData, fetchStats])
   useEffect(() => {
@@ -327,6 +340,34 @@ export function HomeEditor() {
       supabase.from('home_sections').update({ sort_order: b.sort_order }).eq('id', a.id),
       supabase.from('home_sections').update({ sort_order: a.sort_order }).eq('id', b.id),
     ])
+    fetchData()
+  }
+
+  // ── Drag-and-drop nativo (sem lib nova) — reordena soltando sobre outra seção ──
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+
+  async function handleDropReorder(targetId: string) {
+    const sourceId = draggedId
+    setDraggedId(null)
+    setDragOverId(null)
+    if (!sourceId || sourceId === targetId) return
+
+    const sorted = [...sections].sort((a, b) => a.sort_order - b.sort_order)
+    const fromIdx = sorted.findIndex(s => s.id === sourceId)
+    const toIdx = sorted.findIndex(s => s.id === targetId)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const reordered = [...sorted]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    // Reatribui sort_order sequencial pra ordem toda — mais simples e seguro
+    // que só trocar dois valores, já que o item pode pular várias posições.
+    setSections(reordered.map((s, idx) => ({ ...s, sort_order: idx })))
+    await Promise.all(
+      reordered.map((s, idx) => supabase.from('home_sections').update({ sort_order: idx }).eq('id', s.id))
+    )
     fetchData()
   }
 
@@ -689,7 +730,7 @@ export function HomeEditor() {
 
   const sorted = [...sections].sort((a, b) => a.sort_order - b.sort_order)
 
-  const TABS: { key: TabKey; label: string; Icon: any }[] = [
+  const TABS: { key: TabKey; label: string; Icon: LucideIcon }[] = [
     { key: 'series',   label: 'Séries',   Icon: Clapperboard },
     { key: 'movies',   label: 'Filmes',   Icon: Film },
     { key: 'live',     label: 'Canais',   Icon: Tv2 },
@@ -804,8 +845,16 @@ export function HomeEditor() {
                 {sorted.map((s, i) => (
                   <div
                     key={s.id}
-                    className={`rounded-lg border p-2.5 transition-all ${
+                    draggable
+                    onDragStart={() => setDraggedId(s.id)}
+                    onDragOver={e => { e.preventDefault(); if (dragOverId !== s.id) setDragOverId(s.id) }}
+                    onDragLeave={() => setDragOverId(prev => prev === s.id ? null : prev)}
+                    onDrop={e => { e.preventDefault(); handleDropReorder(s.id) }}
+                    onDragEnd={() => { setDraggedId(null); setDragOverId(null) }}
+                    className={`rounded-lg border p-2.5 transition-all cursor-grab active:cursor-grabbing ${
                       s.active ? 'border-border bg-surface' : 'border-border/50 bg-surface/50 opacity-60'
+                    } ${draggedId === s.id ? 'opacity-40' : ''} ${
+                      dragOverId === s.id && draggedId && draggedId !== s.id ? 'border-accent border-2' : ''
                     }`}
                   >
                     {/* Linha principal */}

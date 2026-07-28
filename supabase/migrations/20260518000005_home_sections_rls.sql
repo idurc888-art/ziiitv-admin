@@ -1,5 +1,5 @@
--- home_sections e homes: acesso total para usuários autenticados no admin panel
--- O admin panel já controla quem pode logar, então authenticated = admin
+-- home_sections e homes: somente usuários com role=admin.
+-- Autenticação não equivale a autorização administrativa.
 
 DO $$
 BEGIN
@@ -10,8 +10,8 @@ BEGIN
     CREATE POLICY "Authenticated full access home_sections"
       ON public.home_sections FOR ALL
       TO authenticated
-      USING (true)
-      WITH CHECK (true);
+      USING (public.is_admin())
+      WITH CHECK (public.is_admin());
   END IF;
 END $$;
 
@@ -24,7 +24,7 @@ BEGIN
     CREATE POLICY "Authenticated full access homes"
       ON public.homes FOR ALL
       TO authenticated
-      USING (true)
-      WITH CHECK (true);
+      USING (public.is_admin())
+      WITH CHECK (public.is_admin());
   END IF;
 END $$;

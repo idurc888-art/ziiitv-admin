@@ -246,7 +246,9 @@ export function Channels() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       {ch.canonical_id ? (
-                        <Sparkles className="w-4 h-4 text-yellow-400 mx-auto" title="Enriquecido" />
+                        <span title="Enriquecido" aria-label="Enriquecido">
+                          <Sparkles className="w-4 h-4 text-yellow-400 mx-auto" />
+                        </span>
                       ) : (
                         <span className="text-text-faint text-xs">—</span>
                       )}

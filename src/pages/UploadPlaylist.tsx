@@ -1,564 +1,123 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Database, FileUp, Link2, LockKeyhole, Server, ShieldCheck } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { supabase } from '../lib/supabase'
-import { normalizeStreams, parseMiniM3u } from '../lib/m3uProcessor'
-import { Upload, Copy, Check, X } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { MAX_PLAYLIST_FILE_BYTES, startPlaylistImport, type PlaylistSource } from '../lib/playlistImports'
 
-type Phase = 'parsing' | 'processing' | 'saving' | 'generating' | ''
-type Mode  = 'file' | 'url' | 'xtream'
+type Mode = PlaylistSource['mode']
 
-const PHASE_LABEL: Record<Phase, string> = {
-  parsing:    '📋 Lendo lista...',
-  processing: '⚙️ Classificando canais, filmes e séries...',
-  saving:     '💾 Salvando no banco...',
-  generating: '🎯 Gerando código...',
-  '': '',
-}
-
-interface Stats {
-  raw:       number
-  series:    number
-  movies:    number
-  live:      number
-  inserted:  number
-  discarded: number
-  linked:    number
-}
-
-const MAX_FILE_MB = 500
-const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY as string
-
-function parseXtreamUrl(url: string): { host: string; username: string; password: string } | null {
-  try {
-    const u = new URL(url)
-    const username = u.searchParams.get('username')
-    const password = u.searchParams.get('password')
-    if (!username || !password) return null
-    return { host: `${u.protocol}//${u.host}`, username, password }
-  } catch { return null }
-}
-
-async function fetchTmdbDetails(tmdbId: number, type: 'movie' | 'series') {
-  const mediaType = type === 'series' ? 'tv' : 'movie'
-  try {
-    const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_KEY}&language=pt-BR&append_to_response=credits`)
-    if (!res.ok) return null
-    const d = await res.json()
-    return {
-      overview:  d.overview || '',
-      poster:    d.poster_path   ? `https://image.tmdb.org/t/p/w342${d.poster_path}`   : null,
-      backdrop:  d.backdrop_path ? `https://image.tmdb.org/t/p/w780${d.backdrop_path}` : null,
-      rating:    d.vote_average || 0,
-      year:      (d.release_date || d.first_air_date || '').slice(0, 4),
-      genres:    (d.genres || []).map((g: any) => g.name),
-      cast:      (d.credits?.cast || []).slice(0, 5).map((c: any) => c.name),
-      director:  (d.credits?.crew || []).find((c: any) => c.job === 'Director')?.name || null,
-      runtime:   d.runtime || d.episode_run_time?.[0] || null,
-    }
-  } catch { return null }
-}
+const MODES: Array<{ mode: Mode; label: string; icon: typeof FileUp; description: string }> = [
+  { mode: 'file', label: 'Arquivo M3U', icon: FileUp, description: 'Envio privado para processamento em fila' },
+  { mode: 'url', label: 'URL M3U', icon: Link2, description: 'A origem fica criptografada no Vault' },
+  { mode: 'xtream', label: 'Xtream API', icon: Server, description: 'Tipos e IDs nativos têm prioridade' },
+]
 
 export function UploadPlaylist() {
   const navigate = useNavigate()
+  const [mode, setMode] = useState<Mode>('xtream')
+  const [file, setFile] = useState<File | null>(null)
+  const [url, setUrl] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const [file, setFile]             = useState<File | null>(null)
-  const [url, setUrl]               = useState('')
-  const [mode, setMode]             = useState<Mode>('url')
-  const [xtreamHost, setXtreamHost] = useState('')
-  const [xtreamUser, setXtreamUser] = useState('')
-  const [xtreamPass, setXtreamPass] = useState('')
-  const [loading, setLoading]       = useState(false)
-  const [phase, setPhase]           = useState<Phase>('')
-  const [progress, setProgress]     = useState(0)
-  const [logs, setLogs]             = useState<string[]>([])
-  const [code, setCode]             = useState<string | null>(null)
-  const [copied, setCopied]         = useState(false)
-  const [stats, setStats]           = useState<Stats | null>(null)
-  const cancelledRef                = useRef(false)
-  const playlistIdRef               = useRef<string | null>(null)
-
-  const addLog = (msg: string) => {
-    const time = new Date().toLocaleTimeString('pt-BR', { hour12: false })
-    setLogs(prev => [...prev, `[${time}] ${msg}`])
-  }
-
-  const fileSizeMB = file ? file.size / 1024 / 1024 : 0
-
-  const handleCancel = async () => {
-    cancelledRef.current = true
-    const pid = playlistIdRef.current
-    if (pid) {
-      try {
-        await supabase.from('channels').delete().eq('playlist_id', pid)
-        await supabase.from('playlists').delete().eq('id', pid)
-      } catch {}
-      playlistIdRef.current = null
+  async function submit() {
+    let source: PlaylistSource
+    if (mode === 'file') {
+      if (!file) return toast.error('Selecione um arquivo M3U.')
+      source = { mode, file }
+    } else if (mode === 'url') {
+      if (!url.trim()) return toast.error('Informe a URL M3U.')
+      source = { mode, url: url.trim() }
+    } else {
+      if (!baseUrl.trim() || !username.trim() || !password) return toast.error('Preencha host, usuário e senha.')
+      source = { mode, baseUrl: baseUrl.trim(), username: username.trim(), password }
     }
-    setLoading(false)
-    setPhase('')
-    setProgress(0)
-    addLog('Upload cancelado pelo usuário.')
-    toast('Upload cancelado')
-  }
 
-  const handleUpload = async () => {
-    if (mode === 'file'   && !file)                                                                     { toast.error('Selecione um arquivo .m3u'); return }
-    if (mode === 'url'    && !url.trim())                                                               { toast.error('Cole a URL da playlist'); return }
-    if (mode === 'xtream' && (!xtreamHost.trim() || !xtreamUser.trim() || !xtreamPass.trim()))         { toast.error('Preencha Host, Usuário e Senha'); return }
-    if (mode === 'file'   && file && fileSizeMB > MAX_FILE_MB)                                         { toast.error(`Arquivo maior que ${MAX_FILE_MB}MB`); return }
-
-    setLoading(true)
-    setStats(null)
-    setProgress(0)
-    setLogs([])
-    cancelledRef.current  = false
-    playlistIdRef.current = null
-
+    setSubmitting(true)
     try {
-      addLog('Iniciando processamento da playlist...')
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Não autenticado')
-
-      const host   = xtreamHost.trim().replace(/\/+$/, '')
-      const xtream = mode === 'xtream'
-        ? { host, username: xtreamUser.trim(), password: xtreamPass.trim() }
-        : parseXtreamUrl(url.trim())
-
-      const urlKey = mode === 'file'   ? `file:${file!.name}`
-                   : mode === 'xtream' ? `${host}/get.php?username=${xtreamUser.trim()}&password=${xtreamPass.trim()}&type=m3u_plus&output=ts`
-                   :                     url.trim()
-
-      addLog('Criando registro da playlist no banco de dados...')
-      const { data: playlist, error: plErr } = await supabase
-        .from('playlists')
-        .insert({ url_original: urlKey, status: 'pending', user_id: user.id })
-        .select()
-        .single()
-
-      if (plErr) throw plErr
-      playlistIdRef.current = playlist.id
-
-      // ── Modo arquivo ──────────────────────────────────────────────────────────
-      if (mode === 'file' && file) {
-        addLog(`Lendo arquivo local: ${file.name} (${fileSizeMB.toFixed(1)} MB)...`)
-        setPhase('parsing')
-        setProgress(5)
-
-        const text = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload  = () => resolve(reader.result as string)
-          reader.onerror = () => reject(new Error('Erro ao ler arquivo'))
-          reader.readAsText(file, 'utf-8')
-        })
-
-        if (cancelledRef.current) { await handleCancel(); return }
-
-        addLog('Arquivo lido com sucesso. Analisando formato M3U...')
-        const rawChannels = parseMiniM3u(text)
-        setProgress(15)
-        setPhase('processing')
-
-        addLog(`Encontradas ${rawChannels.length} entradas brutas. Classificando em filmes, séries e canais...`)
-        const { channels, stats: normStats } = normalizeStreams(rawChannels)
-        setProgress(30)
-        addLog(`Classificação concluída: ${channels.length} canais únicos. (${normStats.discarded} itens descartados)`)
-
-        if (cancelledRef.current) { await handleCancel(); return }
-
-        addLog(`Salvando ${channels.length.toLocaleString('pt-BR')} canais no banco (${Math.ceil(channels.length / 1000)} lotes)...`)
-        setPhase('saving')
-        setProgress(35)
-        const BATCH = 1000
-        let inserted = 0
-        const totalBatches = Math.ceil(channels.length / BATCH)
-
-        for (let i = 0; i < channels.length; i += BATCH) {
-          if (cancelledRef.current) { await handleCancel(); return }
-          const batchNum = Math.floor(i / BATCH) + 1
-          const batch = channels.slice(i, i + BATCH).map(ch => ({
-            playlist_id:  playlist.id,
-            user_id:      user.id,
-            name:         ch.name,
-            group_name:   ch.group,
-            logo_url:     ch.logo,
-            streaming:    ch.streaming,
-            streams:      ch.streams,
-            content_type: (ch.contentType === 'show' || ch.contentType === 'standup') ? 'series' : ch.contentType,
-            canonical_id: null,
-            active:       true,
-          }))
-
-          addLog(`💾 Lote ${batchNum}/${totalBatches} — ${batch.length} canais...`)
-          const { error } = await (supabase as any).from('channels').insert(batch) as { error: { message: string } | null }
-          if (error) throw new Error(`Lote ${batchNum}: ${error.message}`)
-          inserted += batch.length
-          setProgress(35 + Math.round((inserted / channels.length) * 50))
-          addLog(`✅ Lote ${batchNum}/${totalBatches} — ${inserted.toLocaleString('pt-BR')}/${channels.length.toLocaleString('pt-BR')} canais salvos`)
-        }
-
-        addLog(`✅ Todos os ${channels.length.toLocaleString('pt-BR')} canais salvos. TMDB vinculado após upload.`)
-
-        await (supabase as any)
-          .from('playlists')
-          .update({ status: 'ready', processed_at: new Date().toISOString() })
-          .eq('id', playlist.id)
-
-        const seriesCount = channels.filter(c => c.contentType === 'series' || c.contentType === 'show' || c.contentType === 'standup').length
-        const moviesCount = channels.filter(c => c.contentType === 'movie').length
-        const liveCount   = channels.filter(c => c.contentType === 'live').length
-
-        setStats({ raw: rawChannels.length, series: seriesCount, movies: moviesCount, live: liveCount, inserted, discarded: normStats.discarded, linked: 0 })
-        setProgress(90)
-
-      // ── Modo Xtream — baixa M3U e processa igual URL normal ─────────────────
-      } else if (xtream) {
-        addLog(`🎯 Xtream: ${xtream.host}`)
-        addLog('Baixando catálogo M3U e processando contra o banco de títulos...')
-        setPhase('processing')
-        setProgress(20)
-
-        const resp = await fetch('/api/process_playlist', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ playlist_id: playlist.id, url: urlKey }),
-        })
-
-        if (cancelledRef.current) return
-
-        const result = await resp.json()
-        if (!resp.ok || !result.success) {
-          throw new Error(result.error || `Erro ${resp.status}`)
-        }
-
-        if (result.skipped) {
-          toast('Lista idêntica — nada mudou')
-          navigate(`/playlists/${playlist.id}`)
-          return
-        }
-
-        setStats(result)
-        setProgress(90)
-        addLog('Processamento finalizado.')
-
-      // ── Modo URL M3U normal ───────────────────────────────────────────────────
-      } else {
-        addLog('Enviando solicitação de processamento de URL para a nuvem...')
-        setPhase('processing')
-        setProgress(20)
-
-        const resp = await fetch('/api/process_playlist', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ playlist_id: playlist.id, url: url.trim() }),
-        })
-
-        if (cancelledRef.current) return
-
-        const result = await resp.json()
-        if (!resp.ok || !result.success) {
-          throw new Error(result.error || `Erro ${resp.status}`)
-        }
-
-        if (result.skipped) {
-          toast('Lista idêntica — nada mudou')
-          navigate(`/playlists/${playlist.id}`)
-          return
-        }
-
-        setStats(result)
-        setProgress(90)
-        addLog('Processamento em nuvem finalizado.')
-      }
-
-      // ── Enriquecimento automático via TMDB (todos os modos) ──────────────────
-      if (playlistIdRef.current) {
-        setPhase('enriching')
-        addLog('Vinculando títulos ao TMDB...')
-        let enrichOffset = 0
-        let enrichTotal  = 0
-        let iterations   = 0
-        while (iterations < 200) {
-          const { data: eData, error: eErr } = await supabase.functions.invoke('enrich-unmatched', {
-            body: { playlist_id: playlistIdRef.current, offset: enrichOffset },
-          })
-          if (eErr || !eData) { addLog(`⚠️ Enriquecimento parcialmente concluído.`); break }
-          enrichTotal += eData.channelsUpdated ?? 0
-          addLog(`🔍 TMDB: ${enrichTotal.toLocaleString('pt-BR')} canais vinculados (${eData.cacheHits ?? 0} cache, ${eData.tmdbHits ?? 0} novos)`)
-          if (eData.done) break
-          enrichOffset = eData.nextOffset ?? 0
-          iterations++
-        }
-        setProgress(97)
-      }
-
-      // ── Gera código de pareamento (todos os modos) ────────────────────────────
-      addLog('Gerando código de pareamento para acesso na TV...')
-      setPhase('generating')
-      const { data: codeData, error: codeErr } = await supabase.functions.invoke('generate-code', {
-        body: { playlist_id: playlistIdRef.current },
-      })
-      if (codeErr) throw codeErr
-      setCode(codeData.code)
-      setProgress(100)
-      addLog(`Código gerado com sucesso: ${codeData.code}`)
-
-    } catch (err: any) {
-      addLog(`[ERRO] ${err.message}`)
-      const msg: string = err.message || 'Erro ao processar playlist'
-      const friendly = msg.includes('403')
-        ? 'Provedor IPTV bloqueou o acesso. Baixe o arquivo .m3u e use o modo Arquivo.'
-        : msg
-      toast.error(friendly, { duration: 8000 })
-      setCode(null)
-      setStats(null)
+      const result = await startPlaylistImport(source)
+      setPassword('')
+      toast.success('Importação protegida e enfileirada.')
+      navigate(`/admin/playlists/${result.playlistId}/imports/${result.importId}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao iniciar importação.', { duration: 7000 })
     } finally {
-      setLoading(false)
-      setPhase('')
+      setSubmitting(false)
     }
-  }
-
-  const copyCode = () => {
-    if (!code) return
-    navigator.clipboard.writeText(code)
-    setCopied(true)
-    toast.success('Código copiado!')
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  const reset = () => {
-    setCode(null)
-    setStats(null)
-    setFile(null)
-    setUrl('')
-    setXtreamHost('')
-    setXtreamUser('')
-    setXtreamPass('')
-    setProgress(0)
   }
 
   return (
-    <div className="space-y-6">
-      <Header
-        title="Upload de Playlist"
-        description="Classifica, vincula ao catálogo TMDB e gera código para a TV"
-      />
+    <div className="animate-in fade-in duration-500 space-y-6">
+      <Header title="Nova importação" description="Pipeline QI220 versionado: ingerir, auditar e somente então publicar para a TV." />
 
-      <Card className="max-w-2xl">
-        <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-3">
+        {MODES.map(({ mode: itemMode, label, icon: Icon, description }) => (
+          <button key={itemMode} type="button" onClick={() => setMode(itemMode)}
+            className={`text-left rounded-2xl border p-5 transition-colors ${mode === itemMode ? 'border-accent bg-accent/10' : 'border-border bg-surface hover:bg-elevated'}`}>
+            <Icon className={`h-5 w-5 ${mode === itemMode ? 'text-accent' : 'text-text-muted'}`} />
+            <p className="mt-3 font-semibold text-text-primary">{label}</p>
+            <p className="mt-1 text-xs leading-5 text-text-muted">{description}</p>
+          </button>
+        ))}
+      </div>
 
-          {/* Modo */}
-          <div className="flex gap-2">
-            {(['file', 'url', 'xtream'] as const).map(m => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                  mode === m ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-                disabled={loading || !!code}
-              >
-                {m === 'file' ? '📁 Arquivo' : m === 'url' ? '🔗 URL M3U' : '📡 Xtream'}
-              </button>
-            ))}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <div className="space-y-5">
+            {mode === 'file' && (
+              <label className="block rounded-2xl border border-dashed border-border bg-elevated/40 p-8 text-center hover:border-accent/60">
+                <FileUp className="mx-auto h-8 w-8 text-accent" />
+                <span className="mt-3 block text-sm font-semibold text-text-primary">{file?.name || 'Selecionar .m3u ou .m3u8'}</span>
+                <span className="mt-1 block text-xs text-text-muted">Até {MAX_PLAYLIST_FILE_BYTES / 1024 / 1024} MB; o navegador não classifica nem lê o arquivo inteiro.</span>
+                <input type="file" accept=".m3u,.m3u8,audio/x-mpegurl" className="hidden" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+              </label>
+            )}
+
+            {mode === 'url' && (
+              <Field label="URL completa da lista" value={url} onChange={setUrl} placeholder="https://provedor.exemplo/lista.m3u" type="url" />
+            )}
+
+            {mode === 'xtream' && (
+              <>
+                <Field label="Host do servidor" value={baseUrl} onChange={setBaseUrl} placeholder="https://provedor.exemplo:443" type="url" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Usuário" value={username} onChange={setUsername} autoComplete="off" />
+                  <Field label="Senha" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center justify-between border-t border-border pt-5">
+              <p className="max-w-md text-xs leading-5 text-text-muted">Nada será exibido na TV antes da validação e da promoção atômica.</p>
+              <Button onClick={submit} loading={submitting} icon={<Database className="h-4 w-4" />}>Iniciar auditoria</Button>
+            </div>
           </div>
+        </Card>
 
-          {/* Input por modo */}
-          {mode === 'url' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">URL da Playlist M3U</label>
-              <input
-                type="url"
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                placeholder="http://exemplo.com/get.php?username=X&password=Y&type=m3u_plus"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                disabled={loading || !!code}
-              />
-            </div>
-          )}
-
-          {mode === 'file' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Arquivo M3U (até {MAX_FILE_MB}MB)</label>
-              <input
-                type="file"
-                accept=".m3u,.m3u8"
-                onChange={e => setFile(e.target.files?.[0] || null)}
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer"
-                disabled={loading || !!code}
-              />
-              {file && (
-                <p className="mt-1 text-sm text-gray-400">{file.name} ({fileSizeMB.toFixed(1)} MB)</p>
-              )}
-            </div>
-          )}
-
-          {mode === 'xtream' && (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Host</label>
-                <input
-                  type="url"
-                  value={xtreamHost}
-                  onChange={e => setXtreamHost(e.target.value)}
-                  placeholder="http://servidor.com:8080"
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  disabled={loading || !!code}
-                />
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Usuário</label>
-                  <input
-                    type="text"
-                    value={xtreamUser}
-                    onChange={e => setXtreamUser(e.target.value)}
-                    placeholder="usuario"
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    disabled={loading || !!code}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Senha</label>
-                  <input
-                    type="password"
-                    value={xtreamPass}
-                    onChange={e => setXtreamPass(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    disabled={loading || !!code}
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Botões */}
-          {!code && (
-            <div className="flex gap-2">
-              <Button
-                onClick={handleUpload}
-                disabled={
-                  loading ||
-                  (mode === 'file'   && !file) ||
-                  (mode === 'url'    && !url.trim()) ||
-                  (mode === 'xtream' && (!xtreamHost.trim() || !xtreamUser.trim() || !xtreamPass.trim()))
-                }
-                className="flex-1"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {loading ? 'Processando...' : 'Processar Playlist'}
-              </Button>
-              {loading && (
-                <Button onClick={handleCancel} variant="danger" className="shrink-0 px-4">
-                  <X className="w-4 h-4 mr-1" />
-                  Cancelar
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Progresso e Logs */}
-          {(loading || logs.length > 0) && !code && (
-            <div className="space-y-4">
-              {loading && phase && (
-                <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-white text-sm font-medium">{PHASE_LABEL[phase]}</span>
-                </div>
-              )}
-              {loading && progress > 0 && (
-                <div className="w-full bg-gray-800 rounded-full h-1.5">
-                  <div
-                    className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              )}
-
-              {logs.length > 0 && (
-                <div className="bg-black/50 border border-gray-800 rounded-lg p-3 h-48 overflow-y-auto font-mono text-xs text-gray-400 flex flex-col gap-1.5 shadow-inner">
-                  {logs.map((log, i) => {
-                    const isError   = log.includes('[ERRO]')
-                    const isSuccess = log.includes('concluído') || log.includes('sucesso')
-                    const logMsg    = log.replace(/^\[[\d:]+\]\s*/, '')
-                    const timeMatch = log.match(/^\[([\d:]+)\]/)
-                    const time      = timeMatch ? timeMatch[1] : ''
-                    return (
-                      <div key={i} className="animate-in fade-in slide-in-from-bottom-1 flex gap-2">
-                        <span className="text-gray-600 shrink-0">[{time}]</span>
-                        <span className={isError ? 'text-red-400' : isSuccess ? 'text-green-400' : 'text-gray-300'}>
-                          {logMsg}
-                        </span>
-                      </div>
-                    )
-                  })}
-                  <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Stats */}
-          {stats && !code && (
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: 'Entradas brutas', value: stats.raw.toLocaleString('pt-BR'),       color: 'text-white' },
-                { label: 'Séries',          value: stats.series.toLocaleString('pt-BR'),    color: 'text-white' },
-                { label: 'Filmes',          value: stats.movies.toLocaleString('pt-BR'),    color: 'text-white' },
-                { label: 'TV ao vivo',      value: stats.live.toLocaleString('pt-BR'),      color: 'text-white' },
-                {
-                  label: 'TMDB vinculados',
-                  value: stats.linked > 0 ? stats.linked.toLocaleString('pt-BR') : '— (após upload)',
-                  color: stats.linked > 0 ? 'text-green-400' : 'text-gray-500',
-                },
-                { label: 'Descartados', value: stats.discarded.toLocaleString('pt-BR'), color: stats.discarded > 0 ? 'text-yellow-400' : 'text-white' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="bg-gray-800 rounded-lg p-3">
-                  <p className="text-xs text-gray-400">{label}</p>
-                  <p className={`text-lg font-bold ${color}`}>{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Código gerado */}
-          {code && (
-            <div className="p-6 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-1">Código Gerado!</h3>
-                {stats && (
-                  <p className="text-sm text-gray-400">
-                    {stats.series.toLocaleString('pt-BR')} séries · {stats.movies.toLocaleString('pt-BR')} filmes · {stats.live.toLocaleString('pt-BR')} TV ao vivo
-                    {stats.linked > 0
-                      ? ` · ${stats.linked.toLocaleString('pt-BR')} vinculados ao TMDB ✨`
-                      : ` · TMDB será vinculado em Playlists ✨`}
-                  </p>
-                )}
-              </div>
-              <p className="text-gray-300 text-sm">Digite na TV para acessar os canais:</p>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 px-4 py-3 bg-black/50 rounded-lg">
-                  <code className="text-2xl font-mono font-bold text-purple-400">{code}</code>
-                </div>
-                <Button onClick={copyCode} className="shrink-0 bg-gray-800 text-gray-300 hover:bg-gray-700">
-                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                </Button>
-              </div>
-              <Button onClick={reset} className="w-full bg-gray-800 text-gray-300 hover:bg-gray-700">
-                Processar Outra Playlist
-              </Button>
-            </div>
-          )}
-
-        </div>
-      </Card>
+        <Card className="h-fit border border-border">
+          <h2 className="flex items-center gap-2 font-semibold text-text-primary"><ShieldCheck className="h-5 w-5 text-neon" /> Garantias desta importação</h2>
+          <ul className="mt-5 space-y-4 text-sm text-text-secondary">
+            <Guarantee icon={LockKeyhole} text="Credenciais fora das tabelas públicas e protegidas no Vault." />
+            <Guarantee icon={Database} text="Versão nova isolada; o catálogo ativo continua servindo a TV." />
+            <Guarantee icon={ShieldCheck} text="Quedas, parse ruim e excesso de desconhecidos bloqueiam publicação." />
+          </ul>
+        </Card>
+      </div>
     </div>
   )
+}
+
+function Field({ label, value, onChange, type = 'text', placeholder, autoComplete }: {
+  label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; autoComplete?: string
+}) {
+  return <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</span><input type={type} value={value} placeholder={placeholder} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-border bg-elevated px-4 py-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted/60 focus:border-accent" /></label>
+}
+
+function Guarantee({ icon: Icon, text }: { icon: typeof ShieldCheck; text: string }) {
+  return <li className="flex gap-3"><Icon className="mt-0.5 h-4 w-4 flex-none text-accent" /><span className="leading-5">{text}</span></li>
 }

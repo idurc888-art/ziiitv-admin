@@ -37,7 +37,7 @@ export function EnrichIndex() {
         .eq('status', 'ready')
         .order('processed_at', { ascending: false })
 
-      const list: PlaylistEnrich[] = (pls || []).map(p => ({
+      const list: PlaylistEnrich[] = (pls || []).map((p: Pick<PlaylistEnrich, 'id' | 'url_original' | 'processed_at'>) => ({
         ...p,
         total: 0,
         enriched: 0,

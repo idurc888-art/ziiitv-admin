@@ -18,6 +18,9 @@ serve(async (req) => {
   try {
     const url = new URL(req.url)
     const code = url.searchParams.get('code')
+    const cursorValue = Number.parseInt(url.searchParams.get('cursor') ?? '0', 10)
+    const cursor = Number.isFinite(cursorValue) && cursorValue >= 0 ? cursorValue : 0
+    const requestedImportId = url.searchParams.get('import_id')
 
     if (!code) {
       return new Response(JSON.stringify({ error: 'Missing code parameter' }), {
@@ -55,20 +58,59 @@ serve(async (req) => {
     if (pairing.playlist_id) {
       const { data: playlist } = await supabase
         .from('playlists')
-        .select('url_original, presentation_mode, home_id')
+        .select('url_original, presentation_mode, home_id, active_import_id')
         .eq('id', pairing.playlist_id)
         .single()
 
+      if (playlist?.active_import_id) {
+        if (requestedImportId && requestedImportId !== playlist.active_import_id) {
+          return new Response(JSON.stringify({ error: 'Playlist version changed', restart: true }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        const pageSize = 750
+        const { data, error } = await supabase.rpc('service_get_active_playlist_items', {
+          p_playlist_id: pairing.playlist_id,
+          p_offset: cursor,
+          p_limit: pageSize,
+        })
+        if (error) throw error
+        const channels: any[] = data ?? []
+
+        let homeId: string | null = playlist.home_id ?? null
+        if (!homeId) {
+          const { data: activeHome } = await supabase.from('homes').select('id').eq('is_active', true).maybeSingle()
+          homeId = activeHome?.id ?? null
+        }
+        let homeSections: any[] = []
+        if (homeId) {
+          const { data } = await supabase.from('home_sections')
+            .select('id, title, type, sort_order, active, config')
+            .eq('home_id', homeId).eq('active', true).order('sort_order')
+          homeSections = data ?? []
+        }
+
+        return new Response(JSON.stringify({
+          contract_version: 'playlist-v2',
+          import_id: playlist.active_import_id,
+          next_cursor: channels.length === pageSize ? cursor + channels.length : null,
+          presentation_mode: playlist.presentation_mode ?? 'auto',
+          home_sections: homeSections,
+          channels,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
       if (playlist?.url_original && playlist.url_original.includes('get.php?username=')) {
         const presentationMode: string = (playlist as any).presentation_mode ?? 'auto'
-        let homeSections: any[] = []
 
         if (presentationMode === 'curated') {
-          // ── Enterprise: usa a home específica linkada à playlist ──────────
+          // ── Curado: TV usa home sections + API Xtream diretamente ─────────
           const playlistHomeId: string | null = (playlist as any).home_id ?? null
           let homeId: string | null = playlistHomeId
 
-          // Fallback: se a playlist não tem home linkada, usa a home ativa global
           if (!homeId) {
             const { data: activeHome } = await supabase
               .from('homes')
@@ -78,6 +120,7 @@ serve(async (req) => {
             homeId = activeHome?.id ?? null
           }
 
+          let homeSections: any[] = []
           if (homeId) {
             const { data: sections } = await supabase
               .from('home_sections')
@@ -87,16 +130,37 @@ serve(async (req) => {
               .order('sort_order')
             homeSections = sections ?? []
           }
+
+          return new Response(JSON.stringify({
+            xtream: true,
+            m3u_url: playlist.url_original,
+            presentation_mode: presentationMode,
+            home_sections: homeSections,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
         }
 
-        return new Response(JSON.stringify({
-          xtream: true,
-          m3u_url: playlist.url_original,
-          presentation_mode: presentationMode,
-          home_sections: homeSections,
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        // ── Auto: usa channels do banco SE playlist foi processada/enriquecida ─
+        const { count: channelCount } = await supabase
+          .from('channels')
+          .select('id', { count: 'exact', head: true })
+          .eq('playlist_id', pairing.playlist_id)
+          .eq('active', true)
+          .not('canonical_id', 'is', null)
+          .limit(1)
+
+        if (!channelCount || channelCount < 10) {
+          return new Response(JSON.stringify({
+            xtream: true,
+            m3u_url: playlist.url_original,
+            presentation_mode: 'auto',
+            home_sections: [],
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        // playlist enriquecida → cai no SELECT abaixo
       }
     }
 

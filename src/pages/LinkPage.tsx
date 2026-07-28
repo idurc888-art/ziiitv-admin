@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, type CSSProperties } from 'react'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -76,7 +77,7 @@ export function LinkPage() {
 
   // Detecta login via OAuth (retorno do Google redirect)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       if (session?.user && (step === 'login' || step === 'email_sent')) {
         setUserId(session.user.id)
         setStep('form')
@@ -97,22 +98,6 @@ export function LinkPage() {
       provider: 'google',
       options: { redirectTo: window.location.href },
     })
-  }
-
-  async function handleEmailLogin(e: React.FormEvent) {
-    e.preventDefault()
-    if (!email.trim()) return
-    setSubmitting(true)
-    setErrorMsg('')
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.href },
-    })
-
-    setSubmitting(false)
-    if (error) { setErrorMsg('Erro ao enviar o link. Tente novamente.'); return }
-    setStep('email_sent')
   }
 
   async function handleEmailPassword(e: React.FormEvent) {

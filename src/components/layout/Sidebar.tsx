@@ -15,6 +15,7 @@ import {
   Sparkles,
   Link2,
   CalendarDays,
+  Database,
 } from 'lucide-react'
 
 const ADMIN_GROUPS = [
@@ -28,6 +29,7 @@ const ADMIN_GROUPS = [
     label: 'Biblioteca',
     items: [
       { to: '/admin/playlists',  icon: List,      label: 'Playlists' },
+      { to: '/admin/imports',    icon: Database,  label: 'Importações' },
       { to: '/admin/channels',   icon: Radio,     label: 'Canais' },
       { to: '/admin/enrich',     icon: Sparkles,  label: 'Enriquecimento' },
       { to: '/admin/epg',        icon: CalendarDays, label: 'EPG (Grade)' },
@@ -89,7 +91,7 @@ export function Sidebar() {
               <NavLink
                 key={it.to}
                 to={it.to}
-                end={(it as any).end}
+              end={'end' in it ? it.end : undefined}
                 className={({ isActive }) => classNames(
                   'flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-sm font-medium transition-colors',
                   isActive

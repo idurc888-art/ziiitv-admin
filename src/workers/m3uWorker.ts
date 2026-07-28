@@ -73,7 +73,7 @@ self.onmessage = async (e: MessageEvent<{ type: string; content: string; catalog
     progress('normalizing', 40, 'Organizando canais por tipo...')
     await new Promise(r => setTimeout(r, 0))
 
-    const channels = normalizeStreams(raw)
+    const { channels } = normalizeStreams(raw)
 
     progress('normalizing', 57, `${channels.length.toLocaleString()} canais únicos — deduplicando séries...`)
     await new Promise(r => setTimeout(r, 0))

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './stores/authStore'
@@ -6,27 +6,28 @@ import { useAuthStore } from './stores/authStore'
 import { Layout } from './components/layout/Layout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { AdminRoute } from './components/layout/AdminRoute'
-import { Login } from './pages/Login'
-import { Unauthorized } from './pages/Unauthorized'
-
-import { Dashboard } from './pages/Dashboard'
-import { Users } from './pages/Users'
-import { Playlists } from './pages/PlaylistsNew'
-import { Channels } from './pages/Channels'
-import { ChannelsPreview } from './pages/ChannelsPreview'
-import { PlaylistChannels } from './pages/PlaylistChannels'
-import { WatchHistory } from './pages/WatchHistory'
-import { UploadPlaylist } from './pages/UploadPlaylist'
-import { ChannelDetail } from './pages/ChannelDetail'
-import { EnrichQueue } from './pages/EnrichQueue'
-import { EnrichIndex } from './pages/EnrichIndex'
-import { LinkPage } from './pages/LinkPage'
-import { Homes } from './pages/Homes'
-import { HomeEditor } from './pages/HomeEditor'
-import { EpgImport } from './pages/EpgImport'
-
-import { ClientDashboard } from './pages/client/ClientDashboard'
 import { Navigate } from 'react-router-dom'
+
+const Login = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })))
+const Unauthorized = lazy(() => import('./pages/Unauthorized').then(module => ({ default: module.Unauthorized })))
+const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })))
+const Users = lazy(() => import('./pages/Users').then(module => ({ default: module.Users })))
+const Playlists = lazy(() => import('./pages/PlaylistsNew').then(module => ({ default: module.Playlists })))
+const Channels = lazy(() => import('./pages/Channels').then(module => ({ default: module.Channels })))
+const ChannelsPreview = lazy(() => import('./pages/ChannelsPreview').then(module => ({ default: module.ChannelsPreview })))
+const PlaylistChannels = lazy(() => import('./pages/PlaylistChannels').then(module => ({ default: module.PlaylistChannels })))
+const WatchHistory = lazy(() => import('./pages/WatchHistory').then(module => ({ default: module.WatchHistory })))
+const UploadPlaylist = lazy(() => import('./pages/UploadPlaylist').then(module => ({ default: module.UploadPlaylist })))
+const ChannelDetail = lazy(() => import('./pages/ChannelDetail').then(module => ({ default: module.ChannelDetail })))
+const EnrichQueue = lazy(() => import('./pages/EnrichQueue').then(module => ({ default: module.EnrichQueue })))
+const EnrichIndex = lazy(() => import('./pages/EnrichIndex').then(module => ({ default: module.EnrichIndex })))
+const LinkPage = lazy(() => import('./pages/LinkPage').then(module => ({ default: module.LinkPage })))
+const Homes = lazy(() => import('./pages/Homes').then(module => ({ default: module.Homes })))
+const HomeEditor = lazy(() => import('./pages/HomeEditor').then(module => ({ default: module.HomeEditor })))
+const EpgImport = lazy(() => import('./pages/EpgImport').then(module => ({ default: module.EpgImport })))
+const PlaylistImports = lazy(() => import('./pages/PlaylistImports').then(module => ({ default: module.PlaylistImports })))
+const PlaylistImportDetail = lazy(() => import('./pages/PlaylistImports').then(module => ({ default: module.PlaylistImportDetail })))
+const ClientDashboard = lazy(() => import('./pages/client/ClientDashboard').then(module => ({ default: module.ClientDashboard })))
 
 function RootRedirect() {
   const { isAdmin } = useAuthStore()
@@ -66,6 +67,7 @@ export function App() {
         }} 
       />
       <BrowserRouter>
+        <Suspense fallback={<RouteLoading />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
@@ -83,6 +85,8 @@ export function App() {
                 <Route path="/admin/homes" element={<Homes />} />
                 <Route path="/admin/homes/:id" element={<HomeEditor />} />
                 <Route path="/admin/upload" element={<UploadPlaylist />} />
+                <Route path="/admin/imports" element={<PlaylistImports />} />
+                <Route path="/admin/playlists/:id/imports/:importId" element={<PlaylistImportDetail />} />
                 <Route path="/admin/preview" element={<ChannelsPreview />} />
                 <Route path="/admin/users" element={<Users />} />
                 <Route path="/admin/playlists" element={<Playlists />} />
@@ -100,7 +104,12 @@ export function App() {
             <Route path="/client" element={<ClientDashboard />} />
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </>
   )
+}
+
+function RouteLoading() {
+  return <div className="flex min-h-screen items-center justify-center bg-base"><div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" /></div>
 }

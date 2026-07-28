@@ -1,0 +1,9 @@
+.git
+.vercel
+dist
+node_modules
+backups
+supabase/.temp
+tests
+*.log
+.env*

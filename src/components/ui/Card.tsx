@@ -1,16 +1,14 @@
-import React from 'react'
+import type React from 'react'
 import { classNames } from '../../lib/utils'
 
-interface CardProps {
-  children: React.ReactNode
-  className?: string
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   padding?: 'sm' | 'md' | 'lg'
 }
 
-export function Card({ children, className, padding = 'md' }: CardProps) {
+export function Card({ children, className, padding = 'md', ...props }: CardProps) {
   const paddings = { sm: 'p-4 rounded-2xl', md: 'p-7 rounded-card', lg: 'p-9 rounded-card' }
   return (
-    <div className={classNames(
+    <div {...props} className={classNames(
       'bg-surface',
       paddings[padding],
       className

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import type { User as SupabaseUser, Session, Subscription } from '@supabase/supabase-js'
+import type { AuthChangeEvent, User as SupabaseUser, Session, Subscription } from '@supabase/supabase-js'
 
 interface AuthState {
   user: SupabaseUser | null
@@ -46,7 +46,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, session: null, isAdmin: false, isLoading: false })
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
       if (session) {
         const { data: profile, error } = await supabase
           .from('users')

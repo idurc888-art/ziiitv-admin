@@ -27,6 +27,6 @@ ALTER TABLE public.epg_channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.epg_schedules ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "epg_channels_read"  ON public.epg_channels  FOR SELECT USING (true);
-CREATE POLICY "epg_channels_write" ON public.epg_channels  FOR ALL    USING (auth.role() = 'authenticated');
+CREATE POLICY "epg_channels_write" ON public.epg_channels  FOR ALL    USING (public.is_admin()) WITH CHECK (public.is_admin());
 CREATE POLICY "epg_schedules_read" ON public.epg_schedules FOR SELECT USING (true);
-CREATE POLICY "epg_schedules_write" ON public.epg_schedules FOR ALL   USING (auth.role() = 'authenticated');
+CREATE POLICY "epg_schedules_write" ON public.epg_schedules FOR ALL   USING (public.is_admin()) WITH CHECK (public.is_admin());
