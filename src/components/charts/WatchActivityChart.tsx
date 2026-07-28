@@ -24,7 +24,7 @@ interface WatchActivityChartProps {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-surface border border-border p-3 rounded-lg shadow-xl">
+      <div className="bg-surface border border-border p-3 rounded-card shadow-xl">
         <p className="text-text-secondary text-sm mb-1">{label}</p>
         <p className="text-accent font-medium">
           {payload[0].value.toFixed(1)} horas assistidas
@@ -45,9 +45,9 @@ export function WatchActivityChart({ data, loading, className }: WatchActivityCh
 
       <div className="h-[300px] min-h-[300px] min-w-0 w-full">
         {loading ? (
-          <div className="w-full h-full skeleton rounded-lg" />
+          <div className="w-full h-full skeleton rounded-card" />
         ) : data.length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center border border-dashed border-border rounded-lg">
+          <div className="w-full h-full flex items-center justify-center border border-dashed border-border rounded-card">
             <span className="text-text-muted text-sm">Sem dados suficientes</span>
           </div>
         ) : (

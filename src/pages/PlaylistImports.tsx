@@ -91,7 +91,7 @@ function metric(run: ImportRun): ImportMetrics | null {
 
 function runTone(run: ImportRun): string {
   if (run.status === 'failed') return 'text-danger bg-danger/10 border-danger/20'
-  if (run.validation_status === 'review_required') return 'text-yellow-300 bg-yellow-500/10 border-yellow-500/20'
+  if (run.validation_status === 'review_required') return 'text-neon bg-neon/10 border-neon/20'
   if (run.status === 'active' || run.validation_status === 'passed') return 'text-neon bg-neon/10 border-neon/20'
   return 'text-accent bg-accent/10 border-accent/20'
 }
@@ -139,7 +139,7 @@ function RunCard({ run }: { run: ImportRun }) {
   return <Link to={`/admin/playlists/${run.playlist_id}/imports/${run.id}`} className="block">
     <Card className="border border-transparent transition-colors hover:border-border" padding="sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-        <div className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl border ${runTone(run)}`}><Database className="h-4 w-4" /></div>
+        <div className={`flex h-10 w-10 flex-none items-center justify-center rounded-[10px] border ${runTone(run)}`}><Database className="h-4 w-4" /></div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2"><p className="truncate font-semibold text-text-primary">{run.playlists?.url_original || 'Playlist'}</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${runTone(run)}`}>{STATUS_LABEL[run.status] || run.status}</span></div>
           <p className="mt-1 text-xs text-text-muted">{run.source_kind.toUpperCase()} · parser {run.parser_version} · {new Date(run.created_at).toLocaleString('pt-BR')}</p>
@@ -285,14 +285,14 @@ export function PlaylistImportDetail() {
 
     <Card className="border border-border">
       <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Etapa atual</p><p className="mt-1 font-semibold text-text-primary">{STATUS_LABEL[run.status] || run.current_stage || run.status}</p></div><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${runTone(run)}`}>{run.validation_status === 'review_required' ? 'Revisão obrigatória' : run.validation_status === 'passed' ? 'Validação aprovada' : `${run.progress}%`}</span></div>
-      <div className="mt-5 h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full transition-all ${run.validation_status === 'review_required' ? 'bg-yellow-400' : 'bg-accent'}`} style={{ width: `${run.progress}%` }} /></div>
+      <div className="mt-5 h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full transition-all ${run.validation_status === 'review_required' ? 'bg-neon' : 'bg-accent'}`} style={{ width: `${run.progress}%` }} /></div>
       {isProcessing && <p className="mt-3 flex items-center gap-2 text-xs text-text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" /> O catálogo atualmente publicado não foi alterado.</p>}
-      {run.error_message && <p className="mt-4 rounded-xl border border-danger/20 bg-danger/10 p-3 text-sm text-danger">{run.error_code}: {run.error_message}</p>}
+      {run.error_message && <p className="mt-4 rounded-card border border-danger/20 bg-danger/10 p-3 text-sm text-danger">{run.error_code}: {run.error_message}</p>}
     </Card>
 
     {metrics && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><Metric label="Brutos" value={metrics.raw_count} /><Metric label="Normalizados" value={metrics.normalized_count} /><Metric label="Ao vivo" value={metrics.live_count} /><Metric label="Filmes" value={metrics.movie_count} /><Metric label="Séries" value={metrics.series_count} /><Metric label="Desconhecidos" value={metrics.unknown_count} warning={metrics.unknown_count > 0} /></div>}
 
-    {run.activation_blockers.length > 0 && <Card className="border border-yellow-500/20 bg-yellow-500/[0.04]"><h2 className="flex items-center gap-2 font-semibold text-yellow-200"><FileWarning className="h-5 w-5" /> Bloqueios encontrados</h2><div className="mt-4 space-y-2">{run.activation_blockers.map((blocker, index) => <div key={`${blocker.code}-${index}`} className="rounded-xl bg-base/50 p-3 text-sm text-text-secondary"><strong className="text-text-primary">{blockerLabel(blocker.code)}</strong><span className="ml-2 text-xs text-text-muted">{JSON.stringify(blocker)}</span></div>)}</div></Card>}
+    {run.activation_blockers.length > 0 && <Card className="border border-neon/20 bg-neon/[0.04]"><h2 className="flex items-center gap-2 font-semibold text-neon"><FileWarning className="h-5 w-5" /> Bloqueios encontrados</h2><div className="mt-4 space-y-2">{run.activation_blockers.map((blocker, index) => <div key={`${blocker.code}-${index}`} className="rounded-card bg-base/50 p-3 text-sm text-text-secondary"><strong className="text-text-primary">{blockerLabel(blocker.code)}</strong><span className="ml-2 text-xs text-text-muted">{JSON.stringify(blocker)}</span></div>)}</div></Card>}
 
     <Card>
       <div className="flex items-center justify-between"><div><h2 className="font-semibold text-text-primary">Fila de tratamento</h2><p className="mt-1 text-xs text-text-muted">Somente títulos ambíguos ou sem correspondência; URLs e credenciais nunca aparecem.</p></div><SlidersHorizontal className="h-5 w-5 text-text-muted" /></div>
@@ -301,18 +301,18 @@ export function PlaylistImportDetail() {
 
     {run.status === 'active' && <Card className="border border-accent/20 bg-accent/[0.04]"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold text-text-primary">Catálogo publicado</h2><p className="mt-1 text-sm text-text-secondary">Agora organize seções e confira o resultado antes do teste Samsung.</p></div><div className="flex gap-2"><Link to="/admin/homes"><Button variant="ghost" icon={<SlidersHorizontal className="h-4 w-4" />}>Organizar Home</Button></Link><Link to="/admin/preview"><Button icon={<Eye className="h-4 w-4" />}>Abrir Preview</Button></Link></div></div></Card>}
 
-    {searchingItem && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"><Card className="w-full max-w-2xl border border-border"><div className="flex items-start justify-between"><div><h2 className="font-semibold text-text-primary">Associar “{searchingItem.display_title}”</h2><p className="mt-1 text-xs text-text-muted">Busca limitada a {searchingItem.content_type}; a decisão será reutilizada.</p></div><button onClick={() => setSearchingItem(null)} className="rounded-lg p-2 text-text-muted hover:bg-elevated"><X className="h-4 w-4" /></button></div><div className="mt-5 flex gap-2"><input value={catalogSearch} onChange={event => setCatalogSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') searchCatalog() }} autoFocus className="min-w-0 flex-1 rounded-xl border border-border bg-elevated px-4 py-2 text-sm text-text-primary outline-none focus:border-accent" /><Button loading={searchingCatalog} onClick={searchCatalog} icon={<Search className="h-4 w-4" />}>Buscar</Button></div><div className="mt-4 max-h-80 space-y-2 overflow-y-auto">{catalogResults.map(candidate => <button key={candidate.id} onClick={() => resolveIdentity(searchingItem, 'matched', candidate.id)} className="flex w-full items-center justify-between rounded-xl border border-border bg-elevated p-3 text-left hover:border-accent"><span className="text-sm font-medium text-text-primary">{candidate.title}</span><span className="text-xs text-text-muted">{candidate.type}{candidate.year ? ` · ${candidate.year}` : ''}</span></button>)}</div></Card></div>}
+    {searchingItem && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"><Card className="w-full max-w-2xl border border-border"><div className="flex items-start justify-between"><div><h2 className="font-semibold text-text-primary">Associar “{searchingItem.display_title}”</h2><p className="mt-1 text-xs text-text-muted">Busca limitada a {searchingItem.content_type}; a decisão será reutilizada.</p></div><button onClick={() => setSearchingItem(null)} className="rounded-[10px] p-2 text-text-muted hover:bg-elevated"><X className="h-4 w-4" /></button></div><div className="mt-5 flex gap-2"><input value={catalogSearch} onChange={event => setCatalogSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') searchCatalog() }} autoFocus className="min-w-0 flex-1 rounded-[10px] border border-border bg-elevated px-4 py-2 text-sm text-text-primary outline-none focus:border-accent" /><Button loading={searchingCatalog} onClick={searchCatalog} icon={<Search className="h-4 w-4" />}>Buscar</Button></div><div className="mt-4 max-h-80 space-y-2 overflow-y-auto">{catalogResults.map(candidate => <button key={candidate.id} onClick={() => resolveIdentity(searchingItem, 'matched', candidate.id)} className="flex w-full items-center justify-between rounded-[10px] border border-border bg-elevated p-3 text-left hover:border-accent"><span className="text-sm font-medium text-text-primary">{candidate.title}</span><span className="text-xs text-text-muted">{candidate.type}{candidate.year ? ` · ${candidate.year}` : ''}</span></button>)}</div></Card></div>}
   </div>
 }
 
 function Summary({ value, label }: { value: string | number; label: string }) { return <div><p className="font-mono text-sm font-semibold text-text-primary">{value}</p><p className="mt-0.5 text-text-muted">{label}</p></div> }
-function Metric({ label, value, warning = false }: { label: string; value: number; warning?: boolean }) { return <Card padding="sm" className="border border-border"><p className={`font-mono text-xl font-bold ${warning ? 'text-yellow-300' : 'text-text-primary'}`}>{value.toLocaleString('pt-BR')}</p><p className="mt-1 text-xs text-text-muted">{label}</p></Card> }
+function Metric({ label, value, warning = false }: { label: string; value: number; warning?: boolean }) { return <Card padding="sm" className="border border-border"><p className={`font-mono text-xl font-bold ${warning ? 'text-neon' : 'text-text-primary'}`}>{value.toLocaleString('pt-BR')}</p><p className="mt-1 text-xs text-text-muted">{label}</p></Card> }
 function Loading() { return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div> }
 function Empty() { return <Card><div className="py-12 text-center"><Clock3 className="mx-auto h-8 w-8 text-text-muted" /><p className="mt-3 text-sm text-text-secondary">Nenhuma importação encontrada.</p></div></Card> }
 function ModuleUnavailable() {
-  return <Card className="border border-yellow-500/20 bg-yellow-500/5">
+  return <Card className="border border-neon/20 bg-neon/5">
     <div className="flex items-start gap-4 py-4">
-      <AlertTriangle className="mt-0.5 h-6 w-6 flex-none text-yellow-300" />
+      <AlertTriangle className="mt-0.5 h-6 w-6 flex-none text-neon" />
       <div>
         <p className="font-semibold text-text-primary">Módulo QI220 aguardando instalação no Supabase</p>
         <p className="mt-1 text-sm leading-6 text-text-secondary">

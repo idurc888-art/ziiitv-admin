@@ -26,7 +26,7 @@ export function Input({ label, error, icon, className, id, ...props }: InputProp
           id={inputId}
           {...props}
           className={classNames(
-            'w-full bg-elevated border border-transparent rounded-xl px-3.5 py-3 text-sm text-text-primary',
+            'w-full bg-elevated border border-transparent rounded-[10px] px-3.5 py-3 text-sm text-text-primary',
             'placeholder:text-text-muted focus:outline-none focus:border-accent focus:bg-surface transition-colors',
             Boolean(icon) && 'pl-11',
             error && 'border-danger focus:border-danger',

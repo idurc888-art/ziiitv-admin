@@ -310,54 +310,54 @@ export function EnrichQueue() {
       {/* Modal de detalhe */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setSelectedItem(null)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-lg w-full mx-4 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-surface border border-border rounded-card p-6 max-w-lg w-full mx-4 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex gap-4">
               {selectedItem.tmdbResult.poster_path && (
-                <img src={`https://image.tmdb.org/t/p/w185${selectedItem.tmdbResult.poster_path}`} className="w-24 rounded-lg object-cover" alt="" />
+                <img src={`https://image.tmdb.org/t/p/w185${selectedItem.tmdbResult.poster_path}`} className="w-24 rounded-[10px] object-cover" alt="" />
               )}
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-500 mb-1">Da lista M3U:</div>
-                <div className="text-sm font-mono text-yellow-300 mb-3">{selectedItem.channel.name}</div>
-                <div className="text-xs text-gray-500 mb-1">Match TMDB:</div>
+                <div className="text-xs text-text-secondary mb-1">Da lista M3U:</div>
+                <div className="text-sm font-mono text-neon mb-3">{selectedItem.channel.name}</div>
+                <div className="text-xs text-text-secondary mb-1">Match TMDB:</div>
                 <div className="text-lg font-bold text-white">{selectedItem.tmdbResult.title || selectedItem.tmdbResult.name}</div>
                 <div className="flex gap-2 mt-1 flex-wrap">
-                  <span className="text-xs text-gray-400">{(selectedItem.tmdbResult.release_date || selectedItem.tmdbResult.first_air_date || '').slice(0, 4)}</span>
-                  <span className="text-xs bg-green-900/50 text-green-400 px-2 py-0.5 rounded font-mono">{Math.round(selectedItem.score * 100)}% match</span>
-                  <span className="text-xs bg-blue-900/50 text-blue-400 px-2 py-0.5 rounded">{selectedItem.tmdbResult.media_type === 'tv' ? 'Série' : 'Filme'}</span>
+                  <span className="text-xs text-text-secondary">{(selectedItem.tmdbResult.release_date || selectedItem.tmdbResult.first_air_date || '').slice(0, 4)}</span>
+                  <span className="text-xs bg-aqua-muted text-aqua px-2 py-0.5 rounded font-mono">{Math.round(selectedItem.score * 100)}% match</span>
+                  <span className="text-xs bg-accent-muted text-accent px-2 py-0.5 rounded">{selectedItem.tmdbResult.media_type === 'tv' ? 'Série' : 'Filme'}</span>
                   {selectedItem.tmdbResult.vote_average > 0 && (
-                    <span className="text-xs bg-yellow-900/50 text-yellow-400 px-2 py-0.5 rounded">⭐ {selectedItem.tmdbResult.vote_average.toFixed(1)}</span>
+                    <span className="text-xs bg-neon-muted text-neon px-2 py-0.5 rounded">⭐ {selectedItem.tmdbResult.vote_average.toFixed(1)}</span>
                   )}
                 </div>
               </div>
             </div>
             {selectedItem.tmdbResult.overview && (
-              <p className="text-sm text-gray-400 leading-relaxed line-clamp-4">{selectedItem.tmdbResult.overview}</p>
+              <p className="text-sm text-text-secondary leading-relaxed line-clamp-4">{selectedItem.tmdbResult.overview}</p>
             )}
-            <div className="text-xs text-gray-600 font-mono">group: {selectedItem.channel.group_name}</div>
-            <button onClick={() => setSelectedItem(null)} className="w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-300 transition">Fechar</button>
+            <div className="text-xs text-text-muted font-mono">group: {selectedItem.channel.group_name}</div>
+            <button onClick={() => setSelectedItem(null)} className="w-full py-2 bg-elevated hover:bg-overlay rounded-[10px] text-sm text-text-secondary transition">Fechar</button>
           </div>
         </div>
       )}
 
-      <div className="flex items-center gap-3 border-b border-gray-800 pb-4">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition">
+      <div className="flex items-center gap-3 border-b border-border pb-4">
+        <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-elevated hover:bg-overlay text-text-secondary hover:text-white transition">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-400" /> Motor de Enriquecimento TMDB
+            <Zap className="w-5 h-5 text-neon" /> Motor de Enriquecimento TMDB
           </h1>
-          <p className="text-sm text-gray-500 mb-2">Auto-vinculação inteligente por pontuação de similaridade</p>
-          
+          <p className="text-sm text-text-secondary mb-2">Auto-vinculação inteligente por pontuação de similaridade</p>
+
           {categoryStats && (
             <div className="flex gap-4">
-              <div className="flex items-center gap-1.5 bg-gray-800 px-3 py-1 rounded-md border border-gray-700">
-                <span className="text-xs text-gray-400">Total na Categoria:</span>
+              <div className="flex items-center gap-1.5 bg-elevated px-3 py-1 rounded-md border border-border">
+                <span className="text-xs text-text-secondary">Total na Categoria:</span>
                 <span className="text-sm font-bold text-white">{categoryStats.total.toLocaleString()}</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-yellow-900/20 px-3 py-1 rounded-md border border-yellow-500/20">
-                <span className="text-xs text-yellow-500">Pendentes (Sem TMDB):</span>
-                <span className="text-sm font-bold text-yellow-400">{categoryStats.pending.toLocaleString()}</span>
+              <div className="flex items-center gap-1.5 bg-neon-muted px-3 py-1 rounded-md border border-neon-muted">
+                <span className="text-xs text-neon">Pendentes (Sem TMDB):</span>
+                <span className="text-sm font-bold text-neon">{categoryStats.pending.toLocaleString()}</span>
               </div>
             </div>
           )}
@@ -367,28 +367,28 @@ export function EnrichQueue() {
       {/* Config */}
       <Card className="p-5 flex flex-wrap gap-6 items-end">
         <div>
-          <label className="text-xs text-gray-400 mb-2 block">Tamanho do Lote</label>
+          <label className="text-xs text-text-secondary mb-2 block">Tamanho do Lote</label>
           <div className="flex gap-2 items-center">
             {([50, 100, 200]).map(n => (
               <button key={n} onClick={() => setBatchSize(n)}
-                className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${batchSize === n ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                className={`px-3 py-2 rounded-[10px] text-sm font-bold transition-all ${batchSize === n ? 'bg-accent text-white' : 'bg-elevated text-text-secondary hover:bg-overlay'}`}>
                 {n}
               </button>
             ))}
-            <input 
-              type="number" 
-              value={batchSize} 
+            <input
+              type="number"
+              value={batchSize}
               onChange={e => setBatchSize(Math.max(1, Number(e.target.value)))}
-              className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-bold focus:border-purple-500 focus:outline-none text-center"
+              className="w-20 bg-elevated border border-border rounded-[10px] px-3 py-2 text-white text-sm font-bold focus:border-accent focus:outline-none text-center"
             />
           </div>
         </div>
         <div>
-          <label className="text-xs text-yellow-400 mb-2 block font-bold">⚠️ O que deseja buscar no TMDB agora?</label>
+          <label className="text-xs text-neon mb-2 block font-bold">⚠️ O que deseja buscar no TMDB agora?</label>
           <div className="flex gap-2">
             {([['movie', '🎬 Apenas Filmes'], ['series', '📺 Apenas Séries']] as [string, string][]).map(([v, l]) => (
               <button key={v} onClick={() => setTypeFilter(v as any)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${typeFilter === v ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                className={`px-4 py-2 rounded-[10px] text-sm font-bold transition-all ${typeFilter === v ? 'bg-accent text-white shadow-xl' : 'bg-elevated text-text-secondary hover:bg-overlay'}`}>
                 {l}
               </button>
             ))}
@@ -396,12 +396,12 @@ export function EnrichQueue() {
         </div>
 
         <div>
-          <label className="text-xs text-blue-400 mb-2 block font-bold">Filtro de Categoria na M3U</label>
-          <select 
-            value={groupFilter} 
+          <label className="text-xs text-accent mb-2 block font-bold">Filtro de Categoria na M3U</label>
+          <select
+            value={groupFilter}
             onChange={e => setGroupFilter(e.target.value)}
             disabled={running || availableGroups.length === 0}
-            className="w-48 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none"
+            className="w-48 bg-elevated border border-border rounded-[10px] px-3 py-2 text-white text-sm focus:border-accent focus:outline-none"
           >
             <option value="">-- Todas as Categorias --</option>
             {availableGroups.map(g => (
@@ -411,16 +411,16 @@ export function EnrichQueue() {
         </div>
 
         <div>
-          <label className="text-xs text-gray-400 mb-2 block">Página de Lotes</label>
-          <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-lg p-1">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 hover:bg-gray-800 rounded text-gray-400 transition">-</button>
+          <label className="text-xs text-text-secondary mb-2 block">Página de Lotes</label>
+          <div className="flex items-center gap-2 bg-elevated border border-border rounded-[10px] p-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 hover:bg-overlay rounded text-text-secondary transition">-</button>
             <span className="text-sm font-bold text-white min-w-[20px] text-center">{page}</span>
-            <button onClick={() => setPage(p => p + 1)} className="px-3 py-1 hover:bg-gray-800 rounded text-gray-400 transition">+</button>
+            <button onClick={() => setPage(p => p + 1)} className="px-3 py-1 hover:bg-overlay rounded text-text-secondary transition">+</button>
           </div>
         </div>
 
         <Button onClick={running ? () => { stopRef.current = true } : run}
-          className={`ml-auto px-8 py-3 font-bold text-base ${running ? 'bg-red-700 hover:bg-red-600' : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400'}`}>
+          className={`ml-auto px-8 py-3 font-bold text-base ${running ? 'bg-danger hover:bg-danger/80' : 'bg-gradient-to-r from-neon to-neon-hover hover:from-neon-hover hover:to-neon-hover'}`}>
           {running ? '⏹ Parar' : '⚡ Iniciar Processamento'}
         </Button>
       </Card>
@@ -429,23 +429,23 @@ export function EnrichQueue() {
       {(running || progress > 0) && (
         <Card className="p-5 space-y-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">{running ? 'Processando...' : stopped ? 'Parado' : 'Concluído'}</span>
+            <span className="text-text-secondary">{running ? 'Processando...' : stopped ? 'Parado' : 'Concluído'}</span>
             <span className="text-white font-bold">{progress}/{total} ({pct}%)</span>
           </div>
-          <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-300 rounded-full"
+          <div className="w-full bg-elevated rounded-full h-3 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-neon to-neon-hover transition-all duration-300 rounded-full"
               style={{ width: `${pct}%` }} />
           </div>
           <div className="grid grid-cols-3 gap-4 pt-2">
             {[
-              { icon: CheckCircle, label: 'Auto-Vinculados', val: stats.linked, color: 'text-green-400' },
-              { icon: Clock, label: 'Para Revisar', val: stats.review, color: 'text-yellow-400' },
-              { icon: XCircle, label: 'Pulados', val: stats.skipped, color: 'text-gray-500' },
+              { icon: CheckCircle, label: 'Auto-Vinculados', val: stats.linked, color: 'text-aqua' },
+              { icon: Clock, label: 'Para Revisar', val: stats.review, color: 'text-neon' },
+              { icon: XCircle, label: 'Pulados', val: stats.skipped, color: 'text-text-muted' },
             ].map(({ icon: Icon, label, val, color }) => (
-              <div key={label} className="flex flex-col items-center p-3 bg-gray-800/50 rounded-xl">
+              <div key={label} className="flex flex-col items-center p-3 bg-elevated/50 rounded-card">
                 <Icon className={`w-5 h-5 ${color} mb-1`} />
                 <span className={`text-2xl font-bold ${color}`}>{val}</span>
-                <span className="text-xs text-gray-500 mt-1">{label}</span>
+                <span className="text-xs text-text-secondary mt-1">{label}</span>
               </div>
             ))}
           </div>
@@ -455,45 +455,45 @@ export function EnrichQueue() {
       {/* Review Queue */}
       {reviewQueue.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-bold text-yellow-400 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-neon flex items-center gap-2">
             <Clock className="w-5 h-5" /> Fila de Revisão — {reviewQueue.length} itens aguardando
           </h2>
           {reviewQueue.map((item) => (
-            <Card key={item.channel.id} className="p-4 flex gap-4 items-start border border-yellow-500/20 bg-yellow-500/5 cursor-pointer hover:border-yellow-400/40 transition" onClick={() => setSelectedItem(item)}>
+            <Card key={item.channel.id} className="p-4 flex gap-4 items-start border border-neon/20 bg-neon/5 cursor-pointer hover:border-neon-hover/40 transition" onClick={() => setSelectedItem(item)}>
               {/* TMDB backdrop */}
-              <div className="w-48 shrink-0 aspect-video bg-gray-800 rounded-lg overflow-hidden">
+              <div className="w-48 shrink-0 aspect-video bg-elevated rounded-card overflow-hidden">
                 {item.tmdbResult.backdrop_path ? (
                   <img src={`https://image.tmdb.org/t/p/w300${item.tmdbResult.backdrop_path}`} className="w-full h-full object-cover" alt="" />
                 ) : item.tmdbResult.poster_path ? (
                   <img src={`https://image.tmdb.org/t/p/w154${item.tmdbResult.poster_path}`} className="w-full h-full object-contain p-2" alt="" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-600 text-3xl">🎬</div>
+                  <div className="w-full h-full flex items-center justify-center text-text-muted text-3xl">🎬</div>
                 )}
               </div>
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-500 mb-0.5">Nome M3U</div>
-                <div className="text-sm text-gray-300 font-mono truncate mb-3">{item.channel.name}</div>
-                <div className="text-xs text-gray-500 mb-0.5">Resultado TMDB</div>
+                <div className="text-xs text-text-secondary mb-0.5">Nome M3U</div>
+                <div className="text-sm text-text-secondary font-mono truncate mb-3">{item.channel.name}</div>
+                <div className="text-xs text-text-secondary mb-0.5">Resultado TMDB</div>
                 <div className="text-base font-bold text-white">{item.tmdbResult.title || item.tmdbResult.name}</div>
                 <div className="flex items-center gap-2 mt-1 mb-3">
-                  <span className="text-xs text-gray-400">{(item.tmdbResult.release_date || item.tmdbResult.first_air_date || '').slice(0, 4)}</span>
-                  <Star className="w-3 h-3 text-yellow-400" />
-                  <span className="text-xs text-yellow-400">{item.tmdbResult.vote_average?.toFixed(1)}</span>
-                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${item.score >= 0.80 ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
+                  <span className="text-xs text-text-secondary">{(item.tmdbResult.release_date || item.tmdbResult.first_air_date || '').slice(0, 4)}</span>
+                  <Star className="w-3 h-3 text-neon" />
+                  <span className="text-xs text-neon">{item.tmdbResult.vote_average?.toFixed(1)}</span>
+                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${item.score >= 0.80 ? 'bg-aqua-muted text-aqua' : 'bg-neon-muted text-neon'}`}>
                     {Math.round(item.score * 100)}% confiança
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 line-clamp-2">{item.tmdbResult.overview}</p>
+                <p className="text-xs text-text-secondary line-clamp-2">{item.tmdbResult.overview}</p>
               </div>
               {/* Actions */}
               <div className="flex flex-col gap-2 shrink-0">
                 <button onClick={e => { e.stopPropagation(); approveReview(item) }}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-bold rounded-lg transition">
+                  className="flex items-center gap-1.5 px-4 py-2 bg-aqua hover:bg-aqua-hover text-white text-sm font-bold rounded-[10px] transition">
                   <CheckCircle className="w-4 h-4" /> Vincular
                 </button>
                 <button onClick={e => { e.stopPropagation(); rejectReview(item) }}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold rounded-lg transition">
+                  className="flex items-center gap-1.5 px-4 py-2 bg-elevated hover:bg-overlay text-text-secondary text-sm font-bold rounded-[10px] transition">
                   <SkipForward className="w-4 h-4" /> Pular
                 </button>
               </div>
@@ -505,25 +505,25 @@ export function EnrichQueue() {
       {/* Auto Linked */}
       {autoLinkedItems.length > 0 && (
         <div className="space-y-3 mt-8">
-          <h2 className="text-lg font-bold text-green-400 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-aqua flex items-center gap-2">
             <CheckCircle className="w-5 h-5" /> Auto-Vinculados — {autoLinkedItems.length} itens identificados e salvos
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {autoLinkedItems.reverse().map((item) => (
-              <Card key={item.channel.id} className="p-3 flex gap-3 items-center border border-green-500/20 bg-green-500/5 cursor-pointer hover:border-green-400/40 transition" onClick={() => setSelectedItem(item)}>
-                <div className="w-16 shrink-0 aspect-[2/3] bg-gray-800 rounded overflow-hidden">
+              <Card key={item.channel.id} className="p-3 flex gap-3 items-center border border-aqua/20 bg-aqua/5 cursor-pointer hover:border-aqua-hover/40 transition" onClick={() => setSelectedItem(item)}>
+                <div className="w-16 shrink-0 aspect-[2/3] bg-surface rounded overflow-hidden">
                   {item.tmdbResult.poster_path ? (
                     <img src={`https://image.tmdb.org/t/p/w92${item.tmdbResult.poster_path}`} className="w-full h-full object-cover" alt="" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">🎬</div>
+                    <div className="w-full h-full flex items-center justify-center text-text-muted text-xs">🎬</div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] text-gray-500 mb-0.5 truncate border-b border-gray-800 pb-1">{item.channel.name}</div>
+                  <div className="text-[10px] text-text-secondary mb-0.5 truncate border-b border-border pb-1">{item.channel.name}</div>
                   <div className="text-sm font-bold text-white truncate mt-1">{item.tmdbResult.title || item.tmdbResult.name}</div>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-400">{(item.tmdbResult.release_date || item.tmdbResult.first_air_date || '').slice(0, 4)}</span>
-                    <span className="text-[10px] bg-green-900/50 text-green-400 px-1.5 py-0.5 rounded font-mono">
+                    <span className="text-xs text-text-secondary">{(item.tmdbResult.release_date || item.tmdbResult.first_air_date || '').slice(0, 4)}</span>
+                    <span className="text-[10px] bg-aqua-muted text-aqua px-1.5 py-0.5 rounded font-mono">
                       {Math.round(item.score * 100)}%
                     </span>
                   </div>

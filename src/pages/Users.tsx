@@ -119,7 +119,7 @@ export function Users() {
         title="Usuários"
         description="Gerenciamento de contas e vínculos de M3U"
         action={
-          <div className="flex bg-surface border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-64">
+          <div className="flex bg-surface border border-border rounded-[10px] px-3 py-2 text-sm w-full sm:w-64">
             <Search className="w-4 h-4 text-text-muted mr-2 flex-shrink-0 mt-0.5" />
             <input
               type="text"
@@ -141,7 +141,7 @@ export function Users() {
       >
         {selectedUser && (
           <div className="space-y-6">
-            <div className="flex items-center gap-4 p-4 border border-border bg-base rounded-lg shadow-inner">
+            <div className="flex items-center gap-4 p-4 border border-border bg-base rounded-card shadow-xl">
               <div className="w-12 h-12 rounded bg-elevated border border-border flex items-center justify-center">
                 <span className="font-mono text-lg text-text-secondary">
                   {selectedUser.email.substring(0, 2).toUpperCase()}

@@ -30,14 +30,14 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
       />
 
       <div className={classNames(
-        'relative bg-surface rounded-[20px] shadow-2xl w-full max-w-[460px] overflow-hidden',
+        'relative bg-surface rounded-card shadow-xl w-full max-w-[460px] overflow-hidden',
         className
       )}>
         <div className="flex items-center justify-between pt-5 pb-3 px-6">
           <h3 className="text-xl font-display font-bold text-text-primary tracking-[-0.025em]">{title}</h3>
           <button
             onClick={onClose}
-            className="text-text-muted hover:text-text-primary transition-colors p-1.5 rounded-lg hover:bg-elevated"
+            className="text-text-muted hover:text-text-primary transition-colors p-1.5 rounded-[10px] hover:bg-elevated"
           >
             <X className="w-5 h-5" />
           </button>

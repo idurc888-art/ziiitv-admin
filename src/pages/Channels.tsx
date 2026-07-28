@@ -28,9 +28,9 @@ const QUALITY_COLORS: Record<string, string> = {
 }
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
-  series:  <Clapperboard className="w-4 h-4 text-purple-400" />,
-  movie:   <Film className="w-4 h-4 text-blue-400" />,
-  live:    <Tv2 className="w-4 h-4 text-green-400" />,
+  series:  <Clapperboard className="w-4 h-4 text-accent" />,
+  movie:   <Film className="w-4 h-4 text-aqua" />,
+  live:    <Tv2 className="w-4 h-4 text-neon" />,
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -105,7 +105,7 @@ export function Channels() {
             : `${total.toLocaleString('pt-BR')} canal${total !== 1 ? 'is' : ''} no total`
         }
         action={
-          <div className="flex bg-surface border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-64">
+          <div className="flex bg-surface border border-border rounded-[10px] px-3 py-2 text-sm w-full sm:w-64">
             <Search className="w-4 h-4 text-text-muted mr-2 flex-shrink-0 mt-0.5" />
             <input
               type="text"
@@ -125,7 +125,7 @@ export function Channels() {
             key={t}
             onClick={() => handleFilterChange(t, enriched)}
             className={classNames(
-              'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+              'px-3 py-1.5 rounded-[10px] text-xs font-medium border transition-colors',
               contentType === t
                 ? 'bg-accent text-white border-accent'
                 : 'bg-surface text-text-secondary border-border hover:border-accent/40 hover:text-text-primary'
@@ -140,7 +140,7 @@ export function Channels() {
             key={e}
             onClick={() => handleFilterChange(contentType, e)}
             className={classNames(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-medium border transition-colors',
               enriched === e
                 ? 'bg-accent text-white border-accent'
                 : 'bg-surface text-text-secondary border-border hover:border-accent/40 hover:text-text-primary'
@@ -154,7 +154,7 @@ export function Channels() {
         {hasFilters && (
           <button
             onClick={() => { setSearch(''); handleFilterChange('all', 'all') }}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-danger border border-dashed border-border hover:border-danger/40 transition-colors"
+            className="px-3 py-1.5 rounded-[10px] text-xs font-medium text-text-muted hover:text-danger border border-dashed border-border hover:border-danger/40 transition-colors"
           >
             Limpar filtros
           </button>
@@ -162,7 +162,7 @@ export function Channels() {
       </div>
 
       {/* Tabela */}
-      <div className="border border-border rounded-xl overflow-hidden">
+      <div className="border border-border rounded-card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-surface">
@@ -247,7 +247,7 @@ export function Channels() {
                     <td className="px-4 py-3 text-center">
                       {ch.canonical_id ? (
                         <span title="Enriquecido" aria-label="Enriquecido">
-                          <Sparkles className="w-4 h-4 text-yellow-400 mx-auto" />
+                          <Sparkles className="w-4 h-4 text-aqua mx-auto" />
                         </span>
                       ) : (
                         <span className="text-text-faint text-xs">—</span>

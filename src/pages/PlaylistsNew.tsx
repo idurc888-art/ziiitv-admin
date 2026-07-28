@@ -43,10 +43,10 @@ interface PlaylistStats {
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function statusIcon(status: string) {
-  if (status === 'ready')      return <CheckCircle className="w-4 h-4 text-green-400" />
-  if (status === 'error')      return <XCircle     className="w-4 h-4 text-red-400" />
-  if (status === 'processing') return <Clock       className="w-4 h-4 text-yellow-400 animate-spin" />
-  return                              <Clock       className="w-4 h-4 text-gray-500" />
+  if (status === 'ready')      return <CheckCircle className="w-4 h-4 text-aqua" />
+  if (status === 'error')      return <XCircle     className="w-4 h-4 text-danger" />
+  if (status === 'processing') return <Clock       className="w-4 h-4 text-neon animate-spin" />
+  return                              <Clock       className="w-4 h-4 text-text-secondary" />
 }
 
 function statusLabel(status: string) {
@@ -57,10 +57,10 @@ function statusLabel(status: string) {
 }
 
 function statusColor(status: string) {
-  if (status === 'ready')      return 'bg-green-500/15 text-green-400 border-green-500/30'
-  if (status === 'error')      return 'bg-red-500/15 text-red-400 border-red-500/30'
-  if (status === 'processing') return 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
-  return 'bg-gray-500/15 text-gray-400 border-gray-500/30'
+  if (status === 'ready')      return 'bg-aqua-muted text-aqua border-aqua/30'
+  if (status === 'error')      return 'bg-danger/15 text-danger border-danger/30'
+  if (status === 'processing') return 'bg-neon-muted text-neon border-neon/30'
+  return 'bg-elevated text-text-secondary border-border'
 }
 
 function friendlyName(urlOriginal: string) {
@@ -250,7 +250,7 @@ export function Playlists() {
       />
 
       {/* Aviso TMDB */}
-      <div className="flex gap-3 p-4 bg-accent/5 border border-accent/20 rounded-xl">
+      <div className="flex gap-3 p-4 bg-accent/5 border border-accent/20 rounded-card">
         <Info className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
         <div className="text-sm text-text-secondary">
           <strong className="text-text-primary">TMDB é compartilhado globalmente.</strong>{' '}
@@ -264,7 +264,7 @@ export function Playlists() {
 
       {playlists.length === 0 ? (
         <Card>
-          <p className="text-gray-400 text-center py-10">
+          <p className="text-text-secondary text-center py-10">
             Nenhuma playlist ainda. Faça upload pela página <strong>Upload Playlist</strong>.
           </p>
         </Card>
@@ -300,12 +300,12 @@ export function Playlists() {
                             setTimeout(() => setCodeCopied(null), 2000)
                           }}
                           title="Copiar código — digitar na TV para carregar esta lista"
-                          className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-full font-mono text-xs font-bold hover:bg-purple-500/25 transition-colors"
+                          className="flex items-center gap-1.5 px-2 py-0.5 bg-accent/15 text-accent border border-accent/30 rounded-full font-mono text-xs font-bold hover:bg-accent/25 transition-colors"
                         >
                           <Tv2 className="w-3 h-3 opacity-70" />
                           {plCode}
                           {codeCopied === pl.id
-                            ? <Check className="w-3 h-3 text-green-400" />
+                            ? <Check className="w-3 h-3 text-aqua" />
                             : <Copy className="w-3 h-3 opacity-60" />}
                         </button>
                       )}
@@ -318,7 +318,7 @@ export function Playlists() {
                           className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium transition-colors ${
                             isCurated
                               ? 'bg-accent/15 text-accent border-accent/30 hover:bg-accent/25'
-                              : 'bg-gray-500/15 text-gray-400 border-gray-500/30 hover:bg-gray-500/25'
+                              : 'bg-elevated text-text-secondary border-border hover:bg-overlay'
                           }`}
                         >
                           {togglingMode === pl.id
@@ -357,7 +357,7 @@ export function Playlists() {
                       )}
                       {/* Sync status — só Xtream */}
                       {isXtream && pl.last_synced_at ? (
-                        <span className="flex items-center gap-1 text-green-400/70">
+                        <span className="flex items-center gap-1 text-aqua/70">
                           <RefreshCw className="w-3 h-3" />
                           Sincronizado {new Date(pl.last_synced_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           {pl.content_count != null && ` · ${pl.content_count.toLocaleString('pt-BR')} títulos`}
@@ -423,7 +423,7 @@ export function Playlists() {
                       <>
                         <div className="grid grid-cols-4 gap-3 mb-4">
                           {/* Total */}
-                          <div className="bg-elevated rounded-lg p-3 border border-border">
+                          <div className="bg-elevated rounded-card p-3 border border-border">
                             <p className="text-xs text-text-muted mb-1">Total</p>
                             <p className="text-xl font-bold text-text-primary">
                               {st.total.toLocaleString('pt-BR')}
@@ -432,12 +432,12 @@ export function Playlists() {
                           </div>
 
                           {/* Séries */}
-                          <div className="bg-elevated rounded-lg p-3 border border-border">
+                          <div className="bg-elevated rounded-card p-3 border border-border">
                             <div className="flex items-center gap-1 mb-1">
-                              <Clapperboard className="w-3 h-3 text-purple-400" />
+                              <Clapperboard className="w-3 h-3 text-accent" />
                               <p className="text-xs text-text-muted">Séries</p>
                             </div>
-                            <p className="text-xl font-bold text-purple-400">
+                            <p className="text-xl font-bold text-accent">
                               {st.series.toLocaleString('pt-BR')}
                             </p>
                             <p className="text-[10px] text-text-muted mt-0.5">
@@ -446,12 +446,12 @@ export function Playlists() {
                           </div>
 
                           {/* Filmes */}
-                          <div className="bg-elevated rounded-lg p-3 border border-border">
+                          <div className="bg-elevated rounded-card p-3 border border-border">
                             <div className="flex items-center gap-1 mb-1">
-                              <Film className="w-3 h-3 text-blue-400" />
+                              <Film className="w-3 h-3 text-aqua" />
                               <p className="text-xs text-text-muted">Filmes</p>
                             </div>
-                            <p className="text-xl font-bold text-blue-400">
+                            <p className="text-xl font-bold text-aqua">
                               {st.movies.toLocaleString('pt-BR')}
                             </p>
                             <p className="text-[10px] text-text-muted mt-0.5">
@@ -460,12 +460,12 @@ export function Playlists() {
                           </div>
 
                           {/* TV ao Vivo */}
-                          <div className="bg-elevated rounded-lg p-3 border border-border">
+                          <div className="bg-elevated rounded-card p-3 border border-border">
                             <div className="flex items-center gap-1 mb-1">
-                              <Tv2 className="w-3 h-3 text-green-400" />
+                              <Tv2 className="w-3 h-3 text-neon" />
                               <p className="text-xs text-text-muted">TV ao Vivo</p>
                             </div>
-                            <p className="text-xl font-bold text-green-400">
+                            <p className="text-xl font-bold text-neon">
                               {st.live.toLocaleString('pt-BR')}
                             </p>
                             <p className="text-[10px] text-text-muted mt-0.5">
@@ -475,21 +475,21 @@ export function Playlists() {
                         </div>
 
                         {/* TMDB barra */}
-                        <div className="bg-elevated rounded-lg p-3 border border-border">
+                        <div className="bg-elevated rounded-card p-3 border border-border">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+                              <Sparkles className="w-3.5 h-3.5 text-neon" />
                               <span className="text-xs font-medium text-text-primary">TMDB Enriquecidos</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-yellow-400">
+                              <span className="text-xs font-bold text-neon">
                                 {st.enriched.toLocaleString('pt-BR')}
                               </span>
                               <span className="text-xs text-text-muted">de {st.total.toLocaleString('pt-BR')}</span>
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                enrichPct >= 80 ? 'bg-green-500/15 text-green-400' :
-                                enrichPct >= 40 ? 'bg-yellow-500/15 text-yellow-400' :
-                                                  'bg-red-500/15 text-red-400'
+                                enrichPct >= 80 ? 'bg-aqua-muted text-aqua' :
+                                enrichPct >= 40 ? 'bg-neon-muted text-neon' :
+                                                  'bg-danger/15 text-danger'
                               }`}>
                                 {enrichPct}%
                               </span>
@@ -497,7 +497,7 @@ export function Playlists() {
                           </div>
                           <div className="h-1.5 bg-border rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-yellow-400 rounded-full transition-all duration-700"
+                              className="h-full bg-neon rounded-full transition-all duration-700"
                               style={{ width: `${enrichPct}%` }}
                             />
                           </div>
@@ -515,7 +515,7 @@ export function Playlists() {
 
                 {/* Erro */}
                 {pl.error_message && (
-                  <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
+                  <div className="mt-3 p-3 bg-danger/10 border border-danger/20 rounded-[10px] text-sm text-danger">
                     {pl.error_message}
                   </div>
                 )}

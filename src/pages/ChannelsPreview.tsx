@@ -158,7 +158,7 @@ export function ChannelsPreview() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400">Carregando preview...</div>
+        <div className="text-text-secondary">Carregando preview...</div>
       </div>
     )
   }
@@ -166,8 +166,8 @@ export function ChannelsPreview() {
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-2 text-center">
-        <div className="text-gray-300 font-medium">Nenhuma seção pra mostrar</div>
-        <div className="text-sm text-gray-500 max-w-md">
+        <div className="text-text-secondary font-medium">Nenhuma seção pra mostrar</div>
+        <div className="text-sm text-text-secondary max-w-md">
           {homeId
             ? 'Essa Home não tem seções ativas ainda — organize pelo Home Editor.'
             : 'Não há Home ativa nem home_id na URL. Abra o preview a partir de uma Home específica.'}
@@ -179,23 +179,23 @@ export function ChannelsPreview() {
   return (
     <div className="grid grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
       {/* Lista de Rows — igual à ordem real que a TV vai mostrar */}
-      <div className="col-span-4 overflow-y-auto bg-gray-900 rounded-lg p-4">
+      <div className="col-span-4 overflow-y-auto bg-surface rounded-card p-4">
         <h2 className="text-lg font-bold text-white mb-1">
           Preview — {homeName || 'Home'}
         </h2>
-        <p className="text-xs text-gray-500 mb-4">{rows.length} fileiras, na ordem em que aparecem na TV</p>
+        <p className="text-xs text-text-secondary mb-4">{rows.length} fileiras, na ordem em que aparecem na TV</p>
         <div className="space-y-2">
           {rows.map(({ section, items, unavailable }, idx) => (
-            <div key={section.id} className="bg-gray-800 rounded-lg p-3">
+            <div key={section.id} className="bg-elevated rounded-card p-3">
               <div className="text-white font-medium mb-1 flex items-center gap-2">
-                <span className="text-xs font-mono text-gray-500">{idx + 1}</span>
+                <span className="text-xs font-mono text-text-secondary">{idx + 1}</span>
                 {section.title}
               </div>
               {unavailable ? (
-                <div className="text-xs text-yellow-500/80 italic">{NO_PREVIEW_TYPES[section.type]}</div>
+                <div className="text-xs text-neon/80 italic">{NO_PREVIEW_TYPES[section.type]}</div>
               ) : (
                 <>
-                  <div className="text-sm text-gray-400 mb-2">{items.length} títulos</div>
+                  <div className="text-sm text-text-secondary mb-2">{items.length} títulos</div>
                   <div className="space-y-1 max-h-40 overflow-y-auto">
                     {items.slice(0, 10).map((item) => (
                       <button
@@ -203,18 +203,18 @@ export function ChannelsPreview() {
                         onClick={() => loadChannels(item.id)}
                         className={`w-full text-left px-2 py-1 rounded text-xs ${
                           selectedRow === item.id
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-700/50 hover:bg-gray-700 text-gray-300'
+                            ? 'bg-accent text-white'
+                            : 'bg-overlay/50 hover:bg-overlay text-text-secondary'
                         }`}
                       >
                         {item.title}{item.channelCount > 0 ? ` (${item.channelCount})` : ''}
                       </button>
                     ))}
                     {items.length > 10 && (
-                      <div className="text-xs text-gray-500 px-2 py-1">+{items.length - 10} mais...</div>
+                      <div className="text-xs text-text-secondary px-2 py-1">+{items.length - 10} mais...</div>
                     )}
                     {items.length === 0 && (
-                      <div className="text-xs text-gray-600 px-2 py-1">Nenhum item encontrado pra essa configuração</div>
+                      <div className="text-xs text-text-muted px-2 py-1">Nenhum item encontrado pra essa configuração</div>
                     )}
                   </div>
                 </>
@@ -225,13 +225,13 @@ export function ChannelsPreview() {
       </div>
 
       {/* Canais */}
-      <div className="col-span-8 overflow-y-auto bg-gray-900 rounded-lg p-4">
+      <div className="col-span-8 overflow-y-auto bg-surface rounded-card p-4">
         {!selectedRow ? (
-          <div className="flex items-center justify-center h-full text-gray-400">
+          <div className="flex items-center justify-center h-full text-text-secondary">
             Selecione um título para ver os canais
           </div>
         ) : loadingChannels ? (
-          <div className="flex items-center justify-center h-full text-gray-400">
+          <div className="flex items-center justify-center h-full text-text-secondary">
             Carregando canais...
           </div>
         ) : (
@@ -240,7 +240,7 @@ export function ChannelsPreview() {
               {channels.length} canais
             </h2>
             {channels.map((ch) => (
-              <Card key={ch.id} className="p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+              <Card key={ch.id} className="p-4 cursor-pointer hover:bg-elevated transition-colors"
                 onClick={() => window.open(`/channels/${ch.id}`, '_blank')}>
                 <div className="flex items-center gap-4">
                   {ch.logo_url && (
@@ -248,12 +248,12 @@ export function ChannelsPreview() {
                   )}
                   <div className="flex-1">
                     <h3 className="font-medium text-white">{ch.name}</h3>
-                    <p className="text-sm text-gray-400">{ch.group_name}</p>
+                    <p className="text-sm text-text-secondary">{ch.group_name}</p>
                   </div>
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-text-secondary">
                     {ch.streams?.length || 0} stream{(ch.streams?.length || 0) > 1 ? 's' : ''}
                   </div>
-                  {ch.canonical_id && <span className="text-xs text-green-400">✓ TMDB</span>}
+                  {ch.canonical_id && <span className="text-xs text-aqua">✓ TMDB</span>}
                 </div>
               </Card>
             ))}

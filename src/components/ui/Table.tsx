@@ -42,7 +42,7 @@ export function Table<TData, TValue>({
 
   return (
     <div className={classNames('w-full', className)}>
-      <div className="overflow-x-auto rounded-t-xl border border-border bg-surface">
+      <div className="overflow-x-auto rounded-t-[18px] border border-border bg-surface">
         <table className="w-full text-sm text-left">
           <thead className="bg-elevated text-text-secondary border-b border-border">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -118,21 +118,21 @@ export function Table<TData, TValue>({
       </div>
       
       {/* Pagination */}
-      <div className="flex items-center justify-between px-6 py-3 border border-t-0 border-border bg-elevated rounded-b-xl">
+      <div className="flex items-center justify-between px-6 py-3 border border-t-0 border-border bg-elevated rounded-b-[18px]">
         <div className="text-sm text-text-secondary">
           Página {table.getState().pagination.pageIndex + 1} de{' '}
           {table.getPageCount() || 1}
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="p-1 rounded-lg border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-elevated disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-1 rounded-[10px] border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-elevated disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage() || loading}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
-            className="p-1 rounded-lg border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-elevated disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-1 rounded-[10px] border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-elevated disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage() || loading}
           >

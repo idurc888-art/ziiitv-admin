@@ -127,14 +127,14 @@ export function EnrichIndex() {
 
               <div className="flex items-center gap-2 flex-shrink-0">
                 {pct === 100 ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg text-xs font-medium">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-aqua-muted text-aqua rounded-[10px] text-xs font-medium">
                     <CheckCircle className="w-3.5 h-3.5" />
                     Completo
                   </div>
                 ) : (
                   <button
                     onClick={() => navigate(`/admin/enrich/${pl.id}`)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent/90 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-[10px] text-xs font-medium hover:bg-accent/90 transition-colors"
                   >
                     <Zap className="w-3.5 h-3.5" />
                     Processar
@@ -152,22 +152,22 @@ export function EnrichIndex() {
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-neon" />
                     <span className="text-xs text-text-secondary">
                       {pl.enriched.toLocaleString('pt-BR')} de {pl.total.toLocaleString('pt-BR')} títulos enriquecidos
                     </span>
                   </div>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                    pct >= 80 ? 'bg-green-500/15 text-green-400' :
-                    pct >= 40 ? 'bg-yellow-500/15 text-yellow-400' :
-                                'bg-red-500/15 text-red-400'
+                    pct >= 80 ? 'bg-aqua-muted text-aqua' :
+                    pct >= 40 ? 'bg-neon-muted text-neon' :
+                                'bg-danger/15 text-danger'
                   }`}>
                     {pct}%
                   </span>
                 </div>
                 <div className="h-1.5 bg-border rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-yellow-400 rounded-full transition-all duration-700"
+                    className="h-full bg-neon rounded-full transition-all duration-700"
                     style={{ width: `${pct}%` }}
                   />
                 </div>

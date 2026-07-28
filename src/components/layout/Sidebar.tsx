@@ -108,7 +108,7 @@ export function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="mt-4 p-3 bg-surface rounded-xl flex items-center gap-3">
+      <div className="mt-4 p-3 bg-surface rounded-card flex items-center gap-3">
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-neon flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">
           {initials}
         </div>
@@ -118,7 +118,7 @@ export function Sidebar() {
         </div>
         <button
           onClick={() => signOut()}
-          className="p-1.5 rounded-lg text-text-muted hover:bg-danger/[0.12] hover:text-danger transition-colors flex-shrink-0"
+          className="p-1.5 rounded-[10px] text-text-muted hover:bg-danger/[0.12] hover:text-danger transition-colors flex-shrink-0"
           title="Sair"
         >
           <LogOut className="w-[18px] h-[18px]" />

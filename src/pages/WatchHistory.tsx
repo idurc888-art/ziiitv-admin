@@ -121,7 +121,7 @@ export function WatchHistory() {
         title="Histórico de Visualização"
         description="Acompanhe o que os usuários estão assistindo em tempo real."
         action={
-          <div className="flex bg-surface border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-64">
+          <div className="flex bg-surface border border-border rounded-[10px] px-3 py-2 text-sm w-full sm:w-64">
             <Search className="w-4 h-4 text-text-muted mr-2 flex-shrink-0 mt-0.5" />
             <input
               type="text"
@@ -134,7 +134,7 @@ export function WatchHistory() {
         }
       />
       {!loading && history.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-xl">
+        <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-card">
           <Tv2 className="w-10 h-10 text-text-faint mb-4" />
           <h3 className="text-text-primary font-medium mb-1">Nenhum histórico ainda</h3>
           <p className="text-sm text-text-muted max-w-xs">

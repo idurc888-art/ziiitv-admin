@@ -188,7 +188,7 @@ export function Dashboard() {
             <div className="flex-1 flex flex-col gap-4">
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex gap-4 p-3 rounded-lg border border-border bg-base/50">
+                  <div key={i} className="flex gap-4 p-3 rounded-card border border-border bg-base/50">
                     <div className="w-10 h-10 skeleton rounded-full" />
                     <div className="flex-1 flex flex-col gap-2">
                       <div className="h-4 w-32 skeleton rounded" />
@@ -197,12 +197,12 @@ export function Dashboard() {
                   </div>
                 ))
               ) : activity.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-sm text-text-muted border border-dashed border-border rounded-lg">
+                <div className="flex-1 flex items-center justify-center text-sm text-text-muted border border-dashed border-border rounded-card">
                   Nenhuma atividade registrada ainda
                 </div>
               ) : (
                 activity.map((item) => (
-                  <div key={item.id} className="flex items-start gap-4 p-3 rounded-lg border border-border bg-base/50 hover:bg-elevated transition-colors">
+                  <div key={item.id} className="flex items-start gap-4 p-3 rounded-card border border-border bg-base/50 hover:bg-elevated transition-colors">
                     <div className="w-10 h-10 flex items-center justify-center rounded-full bg-accent-muted text-accent flex-shrink-0 mt-0.5">
                       <PlayCircle className="w-5 h-5" />
                     </div>

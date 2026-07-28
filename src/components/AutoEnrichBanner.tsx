@@ -209,8 +209,8 @@ export function AutoEnrichBanner({ playlistId }: Props) {
   const pct = Math.round((processed / Math.max(1, job.total_count)) * 100)
 
   return (
-    <div className="bg-gradient-to-r from-gray-900 to-indigo-950 border border-indigo-500/30 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4 mb-6 shadow-lg shadow-indigo-900/10">
-      <div className={`p-3 rounded-xl ${running ? 'bg-yellow-500/20 text-yellow-500 animate-pulse' : 'bg-gray-800 text-gray-500'}`}>
+    <div className="bg-gradient-to-r from-elevated to-accent-muted border border-accent-muted rounded-card p-4 flex flex-col md:flex-row items-center gap-4 mb-6 shadow-xl">
+      <div className={`p-3 rounded-[10px] ${running ? 'bg-neon-muted text-neon animate-pulse' : 'bg-elevated text-text-secondary'}`}>
         <Zap className="w-6 h-6" />
       </div>
       <div className="flex-1 w-full">
@@ -218,29 +218,29 @@ export function AutoEnrichBanner({ playlistId }: Props) {
           <h3 className="font-bold text-white flex items-center gap-2">
             Auto-Enriquecimento ZiiiTV Ouro
             {running ? (
-              <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold animate-pulse">Running</span>
+              <span className="text-[10px] bg-neon-muted text-neon px-2 py-0.5 rounded-full uppercase tracking-wider font-bold animate-pulse">Running</span>
             ) : (
-              <span className="text-[10px] bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Paused</span>
+              <span className="text-[10px] bg-elevated text-text-secondary px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Paused</span>
             )}
           </h3>
-          <span className="text-sm font-bold text-indigo-400">{pct}% ({processed.toLocaleString()} / {job.total_count.toLocaleString()})</span>
+          <span className="text-sm font-bold text-accent">{pct}% ({processed.toLocaleString()} / {job.total_count.toLocaleString()})</span>
         </div>
-        
+
         {/* Progress bar */}
-        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden mt-2 relative">
-           <div className={`h-full transition-all duration-300 ${running ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 'bg-gray-600'}`} style={{ width: `${pct}%` }} />
+        <div className="w-full h-2 bg-elevated rounded-full overflow-hidden mt-2 relative">
+           <div className={`h-full transition-all duration-300 ${running ? 'bg-gradient-to-r from-neon to-neon-hover' : 'bg-border-strong'}`} style={{ width: `${pct}%` }} />
         </div>
-        
+
         <div className="flex items-center gap-4 mt-2 text-xs">
-          <span className="text-gray-400">Tempo estimado depende do limite TMDB (250ms/chamada). Pode fechar a janela, ele continua ou pausa de onde parou.</span>
-          <div className="ml-auto flex items-center gap-1.5 text-green-400 font-bold bg-green-900/30 px-2 py-1 rounded">
+          <span className="text-text-secondary">Tempo estimado depende do limite TMDB (250ms/chamada). Pode fechar a janela, ele continua ou pausa de onde parou.</span>
+          <div className="ml-auto flex items-center gap-1.5 text-aqua font-bold bg-aqua-muted px-2 py-1 rounded">
              <CheckCircle className="w-3.5 h-3.5" />
              {linked} vinculados com precisão máxima
           </div>
         </div>
       </div>
       <div className="shrink-0 flex items-center">
-         <button onClick={toggleAction} className={`p-3 rounded-full flex items-center justify-center transition-all ${running ? 'bg-red-900/50 hover:bg-red-600/80 text-red-400 hover:text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}>
+         <button onClick={toggleAction} className={`p-3 rounded-full flex items-center justify-center transition-all ${running ? 'bg-danger/50 hover:bg-danger/80 text-danger hover:text-white' : 'bg-accent hover:bg-accent-hover text-white'}`}>
            {running ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
          </button>
       </div>

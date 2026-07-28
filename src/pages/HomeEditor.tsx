@@ -384,7 +384,7 @@ export function HomeEditor() {
     const loading = adding === key
 
     return (
-      <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+      <div className={`flex items-center gap-3 px-3 py-2.5 rounded-[10px] border transition-all ${
         inHome ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface hover:bg-elevated'
       }`}>
         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${color}`} />
@@ -520,7 +520,7 @@ export function HomeEditor() {
             return (
               <div
                 key={sp.type}
-                className={`flex items-start gap-3 px-3 py-3 rounded-lg border transition-all ${
+                className={`flex items-start gap-3 px-3 py-3 rounded-[10px] border transition-all ${
                   inHome ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface hover:bg-elevated'
                 }`}
               >
@@ -561,12 +561,12 @@ export function HomeEditor() {
         const rowKey  = `${group.group_title}||${group.content_type}`
         const loading = adding === rowKey
         return (
-          <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+          <div className={`flex items-center gap-3 px-3 py-2.5 rounded-[10px] border transition-all ${
             inHome ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface hover:bg-elevated'
           }`}>
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-              group.content_type === 'live' ? 'bg-green-500' :
-              group.content_type === 'movie' ? 'bg-blue-500' : 'bg-purple-500'
+              group.content_type === 'live' ? 'bg-neon' :
+              group.content_type === 'movie' ? 'bg-aqua' : 'bg-accent'
             }`} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-text-primary truncate">{group.group_title}</p>
@@ -601,7 +601,7 @@ export function HomeEditor() {
             <select
               value={selectedPid || ''}
               onChange={e => { setSelectedPid(e.target.value || null); setXtreamGroups([]) }}
-              className="flex-1 text-xs bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-accent"
+              className="flex-1 text-xs bg-elevated border border-border rounded-[10px] px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-accent"
             >
               {xtreamPlaylists.length === 0
                 ? <option value="">Nenhuma playlist Xtream cadastrada</option>
@@ -620,7 +620,7 @@ export function HomeEditor() {
                 onClick={() => togglePresentationMode(selectedPl)}
                 disabled={togglingMode}
                 title={selectedPl.presentation_mode === 'curated' ? 'Clique para usar modo Auto (mostra tudo)' : 'Clique para ativar Modo Curado (usa esta home)'}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 ${
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-medium transition-colors disabled:opacity-60 ${
                   selectedPl.presentation_mode === 'curated'
                     ? 'bg-accent text-white hover:bg-accent/80'
                     : 'bg-elevated border border-border text-text-muted hover:border-accent hover:text-accent'
@@ -633,10 +633,10 @@ export function HomeEditor() {
                 onClick={() => assignHomeToPlaylist(selectedPl)}
                 disabled={assigningHome}
                 title={selectedPl.home_id === id ? 'Desvincular esta home da playlist' : 'Vincular esta home à playlist'}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-medium transition-colors disabled:opacity-60 ${
                   selectedPl.home_id === id
-                    ? 'bg-green-700/30 border border-green-500/40 text-green-400'
-                    : 'bg-elevated border border-border text-text-muted hover:border-green-500 hover:text-green-400'
+                    ? 'bg-aqua/20 border border-aqua/40 text-aqua'
+                    : 'bg-elevated border border-border text-text-muted hover:border-aqua hover:text-aqua'
                 }`}
               >
                 {assigningHome ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
@@ -652,7 +652,7 @@ export function HomeEditor() {
             </p>
           )}
           {selectedPl && !selectedPl.last_synced_at && (
-            <p className="text-[10px] text-yellow-500/80 px-0.5">
+            <p className="text-[10px] text-neon/80 px-0.5">
               ⏳ Aguardando sincronização — abra a lista na TV com o código
             </p>
           )}
@@ -678,19 +678,19 @@ export function HomeEditor() {
             <div className="space-y-4">
               {liveGroups.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-1.5 px-1">Canais ao Vivo · {liveGroups.length}</p>
+                  <p className="text-[10px] font-semibold text-neon uppercase tracking-wider mb-1.5 px-1">Canais ao Vivo · {liveGroups.length}</p>
                   <div className="space-y-1.5">{liveGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
                 </div>
               )}
               {movieGroups.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5 px-1">Filmes · {movieGroups.length}</p>
+                  <p className="text-[10px] font-semibold text-aqua uppercase tracking-wider mb-1.5 px-1">Filmes · {movieGroups.length}</p>
                   <div className="space-y-1.5">{movieGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
                 </div>
               )}
               {seriesGroups.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-1.5 px-1">Séries · {seriesGroups.length}</p>
+                  <p className="text-[10px] font-semibold text-accent uppercase tracking-wider mb-1.5 px-1">Séries · {seriesGroups.length}</p>
                   <div className="space-y-1.5">{seriesGroups.map(g => <XtreamGroupRow key={`${g.group_title}||${g.content_type}`} group={g} />)}</div>
                 </div>
               )}
@@ -743,7 +743,7 @@ export function HomeEditor() {
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-4 px-6 py-4 border-b border-border flex-shrink-0">
-        <Link to="/homes" className="p-2 rounded-lg text-text-muted hover:bg-elevated transition-colors">
+        <Link to="/homes" className="p-2 rounded-[10px] text-text-muted hover:bg-elevated transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div className="flex-1 min-w-0">
@@ -851,7 +851,7 @@ export function HomeEditor() {
                     onDragLeave={() => setDragOverId(prev => prev === s.id ? null : prev)}
                     onDrop={e => { e.preventDefault(); handleDropReorder(s.id) }}
                     onDragEnd={() => { setDraggedId(null); setDragOverId(null) }}
-                    className={`rounded-lg border p-2.5 transition-all cursor-grab active:cursor-grabbing ${
+                    className={`rounded-[10px] border p-2.5 transition-all cursor-grab active:cursor-grabbing ${
                       s.active ? 'border-border bg-surface' : 'border-border/50 bg-surface/50 opacity-60'
                     } ${draggedId === s.id ? 'opacity-40' : ''} ${
                       dragOverId === s.id && draggedId && draggedId !== s.id ? 'border-accent border-2' : ''
@@ -917,8 +917,8 @@ export function HomeEditor() {
                           onClick={() => handleToggle(s)}
                           className={`p-1 rounded transition-colors ${
                             s.active
-                              ? 'text-green-400 hover:text-text-muted'
-                              : 'text-text-muted hover:text-green-400'
+                              ? 'text-aqua hover:text-text-muted'
+                              : 'text-text-muted hover:text-aqua'
                           }`}
                           title={s.active ? 'Ocultar' : 'Mostrar'}
                         >

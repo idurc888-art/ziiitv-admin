@@ -199,14 +199,14 @@ export function EpgImport() {
         <div className="p-5 border-b border-border">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-[10px] bg-accent/15 flex items-center justify-center">
                 <CalendarDays className="w-4 h-4 text-accent" />
               </div>
               <span className="font-semibold text-text-primary">EPG — Grade</span>
             </div>
             <button
               onClick={loadData}
-              className="p-1.5 rounded-lg text-text-muted hover:bg-white/[0.06] transition-colors"
+              className="p-1.5 rounded-[10px] text-text-muted hover:bg-white/[0.06] transition-colors"
               title="Atualizar"
             >
               <RefreshCw className={`w-4 h-4 ${loadingData ? 'animate-spin' : ''}`} />
@@ -216,11 +216,11 @@ export function EpgImport() {
           {/* Stats chips */}
           {stats && (
             <div className="grid grid-cols-2 gap-2 mb-4">
-              <div className="bg-surface rounded-lg p-2.5 text-center">
+              <div className="bg-surface rounded-card p-2.5 text-center">
                 <div className="text-lg font-bold text-accent">{stats.channels.toLocaleString('pt-BR')}</div>
                 <div className="text-[11px] text-text-muted">Canais</div>
               </div>
-              <div className="bg-surface rounded-lg p-2.5 text-center">
+              <div className="bg-surface rounded-card p-2.5 text-center">
                 <div className="text-lg font-bold text-accent">{stats.programmes.toLocaleString('pt-BR')}</div>
                 <div className="text-[11px] text-text-muted">Programas</div>
               </div>
@@ -229,7 +229,7 @@ export function EpgImport() {
 
           {/* Upload */}
           <div
-            className={`border border-dashed rounded-xl p-3 text-center cursor-pointer transition-colors ${importing ? 'border-accent/40 bg-accent/5' : 'border-border hover:border-accent/40'}`}
+            className={`border border-dashed rounded-card p-3 text-center cursor-pointer transition-colors ${importing ? 'border-accent/40 bg-accent/5' : 'border-border hover:border-accent/40'}`}
             onClick={() => !importing && fileRef.current?.click()}
             onDragOver={e => e.preventDefault()}
             onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
@@ -254,7 +254,7 @@ export function EpgImport() {
 
           {/* Import logs */}
           {importLogs.length > 0 && (
-            <div className="mt-3 bg-surface rounded-lg p-2.5 font-mono text-[10px] text-text-muted space-y-0.5 max-h-28 overflow-y-auto">
+            <div className="mt-3 bg-surface rounded-card p-2.5 font-mono text-[10px] text-text-muted space-y-0.5 max-h-28 overflow-y-auto">
               {importLogs.map((l, i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   {l.startsWith('❌') ? <AlertCircle className="w-3 h-3 text-danger flex-shrink-0" />
@@ -275,7 +275,7 @@ export function EpgImport() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar canal..."
-              className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50"
+              className="w-full bg-surface border border-border rounded-[10px] pl-8 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50"
             />
           </div>
         </div>
@@ -329,10 +329,10 @@ export function EpgImport() {
             {/* Canal header */}
             <div className="flex items-center gap-4 mb-6 pb-5 border-b border-border">
               {selectedCh.icon_url ? (
-                <img src={selectedCh.icon_url} className="w-14 h-14 rounded-xl object-contain bg-surface p-1 border border-border"
+                <img src={selectedCh.icon_url} className="w-14 h-14 rounded-[10px] object-contain bg-surface p-1 border border-border"
                   onError={e => { (e.currentTarget as any).style.display = 'none' }} />
               ) : (
-                <div className="w-14 h-14 rounded-xl bg-surface border border-border flex items-center justify-center">
+                <div className="w-14 h-14 rounded-[10px] bg-surface border border-border flex items-center justify-center">
                   <Tv2 className="w-6 h-6 text-text-muted" />
                 </div>
               )}
@@ -344,7 +344,7 @@ export function EpgImport() {
                 </div>
               </div>
               {nowProgramme && (
-                <div className="ml-auto flex items-center gap-2 bg-success/10 border border-success/25 rounded-xl px-4 py-2">
+                <div className="ml-auto flex items-center gap-2 bg-success/10 border border-success/25 rounded-full px-4 py-2">
                   <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
                   <span className="text-sm font-medium text-success">Ao vivo agora</span>
                 </div>
@@ -361,7 +361,7 @@ export function EpgImport() {
                   const isPast = s.stop_ts < now
                   const prog   = isNow ? progressOf(s.start_ts, s.stop_ts) : 0
                   return (
-                    <div key={s.id} className={`rounded-xl border transition-colors ${
+                    <div key={s.id} className={`rounded-card border transition-colors ${
                       isNow  ? 'bg-success/8 border-success/25' :
                       isPast ? 'bg-transparent border-border opacity-50' :
                                'bg-surface border-border'

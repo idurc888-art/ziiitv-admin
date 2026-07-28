@@ -189,10 +189,10 @@ export function ChannelDetail() {
   const ct = channel.canonical_titles
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-base text-white">
       <Header title="Detalhes do Canal" />
       <div className="max-w-5xl mx-auto p-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-text-secondary hover:text-white mb-6">
           <ArrowLeft size={16} /> Voltar
         </button>
 
@@ -201,20 +201,20 @@ export function ChannelDetail() {
           {/* ── Coluna esquerda: dados atuais ── */}
           <div className="lg:col-span-1 space-y-4">
             {/* Poster */}
-            <div className="aspect-[2/3] bg-gray-800 rounded-lg overflow-hidden">
+            <div className="aspect-[2/3] bg-surface rounded-card overflow-hidden">
               {ct?.poster ? (
                 <img src={ct.poster} alt={ct.title} className="w-full h-full object-cover" />
               ) : channel.logo_url ? (
                 <img src={channel.logo_url} alt={channel.name} className="w-full h-full object-contain p-4" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-600 text-4xl">🎬</div>
+                <div className="w-full h-full flex items-center justify-center text-text-muted text-4xl">🎬</div>
               )}
             </div>
 
             {/* Info TMDB Horizontal Hero */}
             {ct && ct.backdrop && (
-              <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative shadow-lg">
-                <div className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 flex items-center rounded text-gray-300">
+              <div className="aspect-video bg-surface rounded-card overflow-hidden relative shadow-xl">
+                <div className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 flex items-center rounded text-text-secondary">
                   <span className="text-[10px] font-medium uppercase tracking-wider">Capa Hero (Horizontal)</span>
                 </div>
                 <img src={ct.backdrop} alt="" className="w-full h-full object-cover" />
@@ -223,13 +223,13 @@ export function ChannelDetail() {
 
             {/* Info TMDB */}
             {ct && (
-              <div className="bg-gray-800 rounded-lg p-4 space-y-2 text-sm">
+              <div className="bg-surface rounded-card p-4 space-y-2 text-sm">
                 <div className="font-bold text-lg">{ct.title}</div>
-                <div className="text-gray-400">{ct.year} · ⭐ {ct.rating?.toFixed(1)}</div>
-                <div className="text-gray-300 text-xs leading-relaxed line-clamp-4">{ct.overview}</div>
+                <div className="text-text-secondary">{ct.year} · ⭐ {ct.rating?.toFixed(1)}</div>
+                <div className="text-text-secondary text-xs leading-relaxed line-clamp-4">{ct.overview}</div>
                 <a href={`https://www.themoviedb.org/${ct.type === 'series' ? 'tv' : 'movie'}/${ct.tmdb_id}`}
                   target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs">
+                  className="flex items-center gap-1 text-accent hover:text-accent-hover text-xs">
                   <ExternalLink size={12} /> Ver no TMDB
                 </a>
               </div>
@@ -240,10 +240,10 @@ export function ChannelDetail() {
           <div className="lg:col-span-2 space-y-6">
 
             {/* Streams / Temporadas */}
-            <div className="bg-gray-800 rounded-lg p-4 space-y-3">
-              <h2 className="font-bold text-lg border-b border-gray-700 pb-2">
+            <div className="bg-surface rounded-card p-4 space-y-3">
+              <h2 className="font-bold text-lg border-b border-border pb-2">
                 {channel.content_type === 'series' ? 'Temporadas & Episódios' : 'Streams'}
-                <span className="text-xs font-normal text-gray-500 ml-2">{channel.streams?.length || 0} URLs</span>
+                <span className="text-xs font-normal text-text-secondary ml-2">{channel.streams?.length || 0} URLs</span>
               </h2>
 
               {channel.content_type === 'series' ? (() => {
@@ -267,8 +267,8 @@ export function ChannelDetail() {
                           onClick={() => setSelectedSeason(s)}
                           className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
                             activeSeason === s
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                              ? 'bg-accent text-white'
+                              : 'bg-elevated text-text-secondary hover:bg-overlay'
                           }`}
                         >
                           Temp {parseInt(s.slice(1))}
@@ -278,9 +278,9 @@ export function ChannelDetail() {
                     {/* Episode list */}
                     <div className="space-y-1 max-h-72 overflow-y-auto custom-scrollbar">
                       {(seasonMap[activeSeason] || []).map((s, i) => (
-                        <div key={i} className="flex items-center justify-between gap-2 text-xs bg-gray-900 px-3 py-2 rounded hover:bg-gray-700 transition-colors">
-                          <span className="font-mono text-purple-300 shrink-0 w-20 truncate">{s.q}</span>
-                          <span className="text-gray-500 truncate flex-1 font-mono text-[10px]">{s.u}</span>
+                        <div key={i} className="flex items-center justify-between gap-2 text-xs bg-elevated px-3 py-2 rounded hover:bg-overlay transition-colors">
+                          <span className="font-mono text-accent shrink-0 w-20 truncate">{s.q}</span>
+                          <span className="text-text-secondary truncate flex-1 font-mono text-[10px]">{s.u}</span>
                         </div>
                       ))}
                     </div>
@@ -289,7 +289,7 @@ export function ChannelDetail() {
               })() : (
                 <div className="space-y-1 max-h-52 overflow-y-auto">
                   {(channel.streams || []).map((s: any, i: number) => (
-                    <div key={i} className="text-xs font-mono text-gray-400 bg-gray-900 p-1 rounded truncate">
+                    <div key={i} className="text-xs font-mono text-text-secondary bg-elevated p-1 rounded truncate">
                       [{s.q}] {s.u}
                     </div>
                   ))}
@@ -298,23 +298,23 @@ export function ChannelDetail() {
             </div>
 
             {/* Edição */}
-            <div className="bg-gray-800 rounded-lg p-4 space-y-3">
-              <h2 className="font-bold text-lg border-b border-gray-700 pb-2">Editar</h2>
+            <div className="bg-surface rounded-card p-4 space-y-3">
+              <h2 className="font-bold text-lg border-b border-border pb-2">Editar</h2>
               <div>
-                <label className="text-gray-400 text-xs">Nome</label>
+                <label className="text-text-secondary text-xs">Nome</label>
                 <input value={editName} onChange={e => setEditName(e.target.value)}
-                  className="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
+                  className="w-full mt-1 bg-elevated border border-border rounded px-3 py-2 text-white text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-gray-400 text-xs">Streaming</label>
+                  <label className="text-text-secondary text-xs">Streaming</label>
                   <input value={editStreaming} onChange={e => setEditStreaming(e.target.value)}
-                    className="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
+                    className="w-full mt-1 bg-elevated border border-border rounded px-3 py-2 text-white text-sm" />
                 </div>
                 <div>
-                  <label className="text-gray-400 text-xs">Tipo</label>
+                  <label className="text-text-secondary text-xs">Tipo</label>
                   <select value={editContentType} onChange={e => setEditContentType(e.target.value)}
-                    className="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white text-sm">
+                    className="w-full mt-1 bg-elevated border border-border rounded px-3 py-2 text-white text-sm">
                     <option value="movie">Filme</option>
                     <option value="series">Série</option>
                     <option value="live">Ao Vivo</option>
@@ -327,15 +327,15 @@ export function ChannelDetail() {
             </div>
 
             {/* Busca TMDB */}
-            <div className="bg-gray-800 rounded-lg p-4 space-y-3">
-              <h2 className="font-bold text-lg border-b border-gray-700 pb-2">
-                Vincular TMDB {ct && <span className="text-green-400 text-sm ml-2">✓ Vinculado</span>}
+            <div className="bg-surface rounded-card p-4 space-y-3">
+              <h2 className="font-bold text-lg border-b border-border pb-2">
+                Vincular TMDB {ct && <span className="text-aqua text-sm ml-2">✓ Vinculado</span>}
               </h2>
               <div className="flex gap-2">
                 <input value={tmdbSearch} onChange={e => setTmdbSearch(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && searchTMDB()}
                   placeholder="Buscar no TMDB..."
-                  className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
+                  className="flex-1 bg-elevated border border-border rounded px-3 py-2 text-white text-sm" />
                 <Button onClick={searchTMDB} disabled={searching}>
                   <Search size={14} /> {searching ? '...' : 'Buscar'}
                 </Button>
@@ -343,30 +343,30 @@ export function ChannelDetail() {
               <div className="grid grid-cols-2 gap-2">
                 {tmdbResults.map(r => (
                   <button key={r.id} onClick={() => linkTMDB(r)}
-                    className="flex flex-col gap-0 bg-gray-900 border border-transparent hover:border-purple-500 rounded-lg overflow-hidden text-left transition-all relative group">
+                    className="flex flex-col gap-0 bg-elevated border border-transparent hover:border-accent rounded-card overflow-hidden text-left transition-all relative group">
                     {/* Imagem Horizontal */}
-                    <div className="w-full aspect-video bg-gray-800 relative">
+                    <div className="w-full aspect-video bg-surface relative">
                        {r.backdrop_path ? (
                          <img src={`https://image.tmdb.org/t/p/w300${r.backdrop_path}`} alt="" className="w-full h-full object-cover" />
                        ) : (
-                         <div className="w-full h-full flex items-center justify-center text-gray-700 text-[10px]">S/ Capa Hero</div>
+                         <div className="w-full h-full flex items-center justify-center text-text-muted text-[10px]">S/ Capa Hero</div>
                        )}
                        {/* Gradiente */}
-                       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-gray-900 to-transparent" />
+                       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-base to-transparent" />
                     </div>
                     {/* Info */}
                     <div className="flex gap-2 px-3 pb-3 -mt-6 relative z-10 w-full">
                       {r.poster_path ? (
                         <img src={`https://image.tmdb.org/t/p/w92${r.poster_path}`} alt=""
-                          className="w-10 h-14 object-cover rounded shadow border border-gray-700 bg-gray-800 flex-shrink-0" />
+                          className="w-10 h-14 object-cover rounded shadow border border-border bg-surface flex-shrink-0" />
                       ) : (
-                        <div className="w-10 h-14 bg-gray-800 border border-gray-700 rounded flex-shrink-0" />
+                        <div className="w-10 h-14 bg-surface border border-border rounded flex-shrink-0" />
                       )}
                       <div className="min-w-0 pt-7 flex-1">
                         <div className="text-xs font-bold text-white truncate drop-shadow-md">{r.title || r.name}</div>
                         <div className="flex items-center justify-between mt-0.5">
-                          <span className="text-[10px] text-gray-400 font-medium">{(r.release_date || r.first_air_date || '').slice(0, 4)}</span>
-                          <span className="text-[10px] uppercase text-purple-400 font-bold">{r.media_type === 'tv' ? 'Série' : 'Filme'}</span>
+                          <span className="text-[10px] text-text-secondary font-medium">{(r.release_date || r.first_air_date || '').slice(0, 4)}</span>
+                          <span className="text-[10px] uppercase text-accent font-bold">{r.media_type === 'tv' ? 'Série' : 'Filme'}</span>
                         </div>
                       </div>
                     </div>

@@ -270,7 +270,7 @@ export function PlaylistChannels() {
     return (
       <div className="space-y-6">
         <Header title="Detalhes da Playlist" description="Carregando..." />
-        <Card><p className="text-gray-400">Carregando dados da inteligência ZiiiTV...</p></Card>
+        <Card><p className="text-text-secondary">Carregando dados da inteligência ZiiiTV...</p></Card>
       </div>
     )
   }
@@ -287,20 +287,20 @@ export function PlaylistChannels() {
         <button
           onClick={handleLink}
           disabled={linking}
-          className="flex items-center gap-2 px-5 py-2.5 bg-aqua hover:bg-aqua-hover disabled:opacity-50 text-base font-bold text-sm rounded-xl transition-all shadow-lg">
+          className="flex items-center gap-2 px-5 py-2.5 bg-aqua hover:bg-aqua-hover disabled:opacity-50 text-base font-bold text-sm rounded-card transition-all shadow-xl">
           <Link2 className="w-4 h-4" />
           {linking ? 'Vinculando...' : 'Vincular ao catálogo'}
         </button>
         <button
           onClick={() => navigate(`/enrich/${id}`)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-sm rounded-xl transition-all shadow-lg shadow-orange-900/30">
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-neon to-neon-hover hover:from-neon-hover hover:to-neon-hover text-black font-bold text-sm rounded-card transition-all shadow-xl">
           <Zap className="w-4 h-4" /> Enriquecer com TMDB
         </button>
       </div>
 
       {/* Painel de logs em tempo real */}
       {(linking || linkLogs.length > 0) && (
-        <div className="rounded-xl border border-border bg-[#0d0d0d] overflow-hidden">
+        <div className="rounded-card border border-border bg-[#0d0d0d] overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-surface">
             {linking
               ? <Loader2 className="w-4 h-4 text-aqua animate-spin" />
@@ -336,56 +336,56 @@ export function PlaylistChannels() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700">
+        <Card className="bg-gradient-to-br from-elevated to-surface border-border">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-500/20 rounded-lg">
-              <ArrowDownToLine className="w-5 h-5 text-purple-400" />
+            <div className="p-2 bg-accent-muted rounded-[10px]">
+              <ArrowDownToLine className="w-5 h-5 text-accent" />
             </div>
-            <h3 className="text-gray-300 font-medium">Links M3U Processados</h3>
+            <h3 className="text-text-secondary font-medium">Links M3U Processados</h3>
           </div>
           <div className="text-4xl font-bold text-white mb-1">{totalOriginalLinks.toLocaleString()}</div>
-          <div className="text-sm text-gray-400">Streams/URLs sujas identificadas</div>
+          <div className="text-sm text-text-secondary">Streams/URLs sujas identificadas</div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border-indigo-500/30">
+        <Card className="bg-gradient-to-br from-accent/10 to-accent/20 border-accent/30">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-indigo-500/20 rounded-lg">
-              <Shield className="w-5 h-5 text-indigo-400" />
+            <div className="p-2 bg-accent-muted rounded-[10px]">
+              <Shield className="w-5 h-5 text-accent" />
             </div>
-            <h3 className="text-gray-300 font-medium">Títulos Consolidados</h3>
+            <h3 className="text-text-secondary font-medium">Títulos Consolidados</h3>
           </div>
-          <div className="text-4xl font-bold text-indigo-300 mb-1">{totalTitles.toLocaleString()}</div>
-          <div className="text-sm text-indigo-300/70">Cards/Filmes únicos no ZiiiTV</div>
+          <div className="text-4xl font-bold text-accent mb-1">{totalTitles.toLocaleString()}</div>
+          <div className="text-sm text-accent/70">Cards/Filmes únicos no ZiiiTV</div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-900/40 to-emerald-900/40 border-green-500/30">
+        <Card className="bg-gradient-to-br from-aqua/10 to-aqua/20 border-aqua/30">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-green-500/20 rounded-lg">
-              <Percent className="w-5 h-5 text-green-400" />
+            <div className="p-2 bg-aqua-muted rounded-[10px]">
+              <Percent className="w-5 h-5 text-aqua" />
             </div>
-            <h3 className="text-gray-300 font-medium">Taxa de Compressão</h3>
+            <h3 className="text-text-secondary font-medium">Taxa de Compressão</h3>
           </div>
           <div className="flex items-baseline gap-2">
-            <div className="text-4xl font-bold text-green-400 mb-1">{compressionRatio}%</div>
+            <div className="text-4xl font-bold text-aqua mb-1">{compressionRatio}%</div>
           </div>
-          <div className="text-sm text-green-400/70">Redução mantendo o mesmo conteúdo</div>
+          <div className="text-sm text-aqua/70">Redução mantendo o mesmo conteúdo</div>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-            <Star className="w-5 h-5 text-yellow-500" /> Catálogo TMDB
+            <Star className="w-5 h-5 text-neon" /> Catálogo TMDB
           </h3>
           <div className="space-y-4">
              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Títulos Identificados</span>
+                <span className="text-text-secondary">Títulos Identificados</span>
                 <span className="font-medium text-white">{totalMatched.toLocaleString()} ({matchedPercent}%)</span>
              </div>
-             <div className="w-full bg-gray-800 rounded-full h-2">
-               <div className="bg-gradient-to-r from-yellow-500 to-orange-500 h-full rounded-full" style={{ width: `${matchedPercent}%` }} />
+             <div className="w-full bg-elevated rounded-full h-2">
+               <div className="bg-gradient-to-r from-neon to-neon-hover h-full rounded-full" style={{ width: `${matchedPercent}%` }} />
              </div>
-             <p className="text-sm text-gray-500 pt-2 border-t border-gray-800">
+             <p className="text-sm text-text-secondary pt-2 border-t border-border">
                Estes são os títulos que o ZiiiTV conseguiu limpar, formatar e obter capas HD, sinopses e nota de avaliação reais da internet.
              </p>
           </div>
@@ -393,19 +393,19 @@ export function PlaylistChannels() {
 
         <Card>
           <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-500" /> Distribuição ZiiiTV
+            <Activity className="w-5 h-5 text-aqua" /> Distribuição ZiiiTV
           </h3>
           <div className="space-y-3">
              {[
-               { label: 'Filmes', val: categories.filmes.length, color: 'text-blue-400', icon: Film },
-               { label: 'Séries', val: categories.series.length, color: 'text-pink-400', icon: Tv },
-               { label: 'Ao Vivo', val: categories.live.length, color: 'text-orange-400', icon: Activity },
-               { label: 'Outros', val: categories.outros.length, color: 'text-gray-400', icon: Shield },
+               { label: 'Filmes', val: categories.filmes.length, color: 'text-aqua', icon: Film },
+               { label: 'Séries', val: categories.series.length, color: 'text-accent', icon: Tv },
+               { label: 'Ao Vivo', val: categories.live.length, color: 'text-neon', icon: Activity },
+               { label: 'Outros', val: categories.outros.length, color: 'text-text-secondary', icon: Shield },
              ].map(item => (
-               <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/40">
+               <div key={item.label} className="flex items-center justify-between p-3 rounded-[10px] bg-elevated/40">
                  <div className="flex items-center gap-3">
                    <item.icon className={`w-4 h-4 ${item.color}`} />
-                   <span className="text-gray-300 font-medium">{item.label}</span>
+                   <span className="text-text-secondary font-medium">{item.label}</span>
                  </div>
                  <span className="text-white font-bold">{item.val.toLocaleString()}</span>
                </div>
@@ -423,38 +423,38 @@ export function PlaylistChannels() {
       <div className="space-y-4 animate-in fade-in">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xl font-bold text-white capitalize flex items-center gap-2">
-            {activeView.split(':')[1] || 'Canais'} 
-            <span className="px-2 py-0.5 bg-gray-800 text-gray-400 rounded-full text-xs font-normal">
+            {activeView.split(':')[1] || 'Canais'}
+            <span className="px-2 py-0.5 bg-elevated text-text-secondary rounded-full text-xs font-normal">
               {filteredChannels.length}
             </span>
           </h2>
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input 
-              type="text" 
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+            <input
+              type="text"
               placeholder="Buscar canal..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 w-64"
+              className="pl-9 pr-4 py-2 bg-elevated border border-border rounded-[10px] text-sm text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent w-64"
             />
           </div>
         </div>
-        
+
         {filteredChannels.length === 0 ? (
-          <Card className="py-12 text-center text-gray-500">Nenhum canal encontrado.</Card>
+          <Card className="py-12 text-center text-text-secondary">Nenhum canal encontrado.</Card>
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
               {paginatedChannels.map(ch => {
                  const hasTMDB = !!ch.canonical_titles?.tmdb_id;
                  return (
-                 <div key={ch.id} onClick={() => navigate(`/channels/${ch.id}`)} className={`flex items-start gap-3 p-3 rounded-xl transition relative overflow-hidden group cursor-pointer ${
-                   hasTMDB 
-                     ? 'bg-gradient-to-r from-yellow-500/10 to-transparent border border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.05)] hover:border-yellow-400' 
-                     : 'bg-gray-800/40 border border-gray-700/50 hover:bg-gray-800/70'
+                 <div key={ch.id} onClick={() => navigate(`/channels/${ch.id}`)} className={`flex items-start gap-3 p-3 rounded-card transition relative overflow-hidden group cursor-pointer ${
+                   hasTMDB
+                     ? 'bg-gradient-to-r from-neon/10 to-transparent border border-neon/50 shadow-[0_0_15px_rgba(255,140,66,0.05)] hover:border-neon-hover'
+                     : 'bg-elevated/40 border border-border/50 hover:bg-elevated/70'
                  }`}>
                    {/* Poster */}
-                   <div className="w-16 h-24 shrink-0 rounded-lg bg-gray-900 overflow-hidden relative shadow-lg">
+                   <div className="w-16 h-24 shrink-0 rounded-[10px] bg-elevated overflow-hidden relative shadow-xl">
                      {(ch.canonical_titles?.poster || ch.logo_url) ? (
                        <img
                          src={
@@ -469,7 +469,7 @@ export function PlaylistChannels() {
                          onError={e => (e.currentTarget.style.display = 'none')}
                        />
                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800 text-gray-600">
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-elevated text-text-muted">
                           <Tv className="w-6 h-6 mb-1" />
                           <span className="text-[10px]">S/ Imagem</span>
                         </div>
@@ -481,42 +481,42 @@ export function PlaylistChannels() {
                      <div className="text-white text-sm font-semibold truncate mb-1 flex items-center gap-2">
                        {ch.canonical_titles?.title || ch.name}
                        {hasTMDB && (
-                         <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/30">
+                         <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-aqua-muted text-aqua border border-aqua/30">
                            ✅ TMDB
                          </span>
                        )}
                      </div>
-                     
+
                      <div className="flex items-center gap-2 mb-2">
                        {ch.canonical_titles?.rating && (
                          <div className="flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded text-[10px]">
-                           <Star className="w-3 h-3 text-yellow-400" />
-                           <span className="text-yellow-400 font-medium">{ch.canonical_titles.rating.toFixed(1)}</span>
+                           <Star className="w-3 h-3 text-neon" />
+                           <span className="text-neon font-medium">{ch.canonical_titles.rating.toFixed(1)}</span>
                          </div>
                        )}
-                       <span className="text-xs text-gray-500 capitalize">{ch.content_type === 'movie' ? 'Filme' : ch.content_type === 'series' ? 'Série' : ch.content_type}</span>
-                       {ch.streaming && <span className="text-[10px] uppercase text-purple-400 font-medium truncate">{ch.streaming}</span>}
+                       <span className="text-xs text-text-secondary capitalize">{ch.content_type === 'movie' ? 'Filme' : ch.content_type === 'series' ? 'Série' : ch.content_type}</span>
+                       {ch.streaming && <span className="text-[10px] uppercase text-accent font-medium truncate">{ch.streaming}</span>}
                      </div>
 
                      {/* Qualities */}
                      <div className="flex flex-wrap gap-1 mt-auto">
                        {(ch.streams || []).slice(0, 4).map((s, i) => (
-                         <span key={i} className="text-[10px] font-medium px-1.5 py-0.5 bg-gray-700/50 text-gray-300 rounded border border-gray-600/50">
+                         <span key={i} className="text-[10px] font-medium px-1.5 py-0.5 bg-elevated/50 text-text-secondary rounded border border-border/50">
                            {s.q}
                          </span>
                        ))}
                        {(ch.streams?.length || 0) > 4 && (
-                         <span className="text-[10px] text-gray-500 px-1 pt-0.5">+{ch.streams.length - 4}</span>
+                         <span className="text-[10px] text-text-secondary px-1 pt-0.5">+{ch.streams.length - 4}</span>
                        )}
                      </div>
                    </div>
                  </div>
               )})}
             </div>
-            
+
             {filteredChannels.length > paginatedChannels.length && (
               <div className="pt-4 pb-8 flex justify-center">
-                <Button onClick={() => setPage(p => p + 1)} className="w-1/2 bg-gray-800 text-gray-300 hover:bg-gray-700">
+                <Button onClick={() => setPage(p => p + 1)} className="w-1/2 bg-elevated text-text-secondary hover:bg-overlay">
                   Carregar Mais ({filteredChannels.length - paginatedChannels.length} restantes)
                 </Button>
               </div>
@@ -532,18 +532,18 @@ export function PlaylistChannels() {
     return (
       <button 
         onClick={() => { setActiveView(id); setSearch('') }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all ${
-          isAct 
-            ? 'bg-purple-600/20 text-purple-300 font-medium border border-purple-500/20' 
-            : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-[10px] text-sm transition-all ${
+          isAct
+            ? 'bg-accent/20 text-accent font-medium border border-accent/20'
+            : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
         }`}
       >
         <div className="flex items-center gap-3">
-          <Icon className={`w-4 h-4 ${isAct ? 'text-purple-400' : 'text-gray-500'}`} />
+          <Icon className={`w-4 h-4 ${isAct ? 'text-accent' : 'text-text-secondary'}`} />
           <span className="capitalize">{label}</span>
         </div>
         {count !== undefined && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-full ${isAct ? 'bg-purple-500/30' : 'bg-gray-800'}`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${isAct ? 'bg-accent/30' : 'bg-elevated'}`}>
             {count}
           </span>
         )}
@@ -553,15 +553,15 @@ export function PlaylistChannels() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 border-b border-gray-800 pb-4">
-        <Button onClick={() => navigate('/playlists')} className="rounded-full w-8 h-8 p-0 flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-white">
+      <div className="flex items-center gap-3 border-b border-border pb-4">
+        <Button onClick={() => navigate('/playlists')} className="rounded-full w-8 h-8 p-0 flex items-center justify-center bg-elevated hover:bg-overlay text-white">
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-             M3U ZiiiTV Report 
+             M3U ZiiiTV Report
            </h1>
-           <p className="text-sm text-gray-500">{playlist?.url_original}</p>
+           <p className="text-sm text-text-secondary">{playlist?.url_original}</p>
         </div>
       </div>
 
@@ -572,10 +572,10 @@ export function PlaylistChannels() {
         <Card className="w-full md:w-64 shrink-0 p-3 flex flex-col gap-6 sticky top-4 max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar">
            
            <div>
-             <div className="text-xs font-bold text-yellow-500 uppercase tracking-wider mb-2 px-3 flex items-center gap-1">
-               <Star className="w-3.5 h-3.5 text-yellow-500" /> ZIIITV OURO MATCH
+             <div className="text-xs font-bold text-neon uppercase tracking-wider mb-2 px-3 flex items-center gap-1">
+               <Star className="w-3.5 h-3.5 text-neon" /> ZIIITV OURO MATCH
              </div>
-             <div className="space-y-1 bg-yellow-500/5 rounded-xl p-1 border border-yellow-500/20">
+             <div className="space-y-1 bg-neon/5 rounded-card p-1 border border-neon/20">
                <NavItem id="match:todos" label="Todos Matched" icon={Star} count={matchedCategories.todos.length} />
                <NavItem id="match:filmes" label="Filmes" icon={Film} count={matchedCategories.filmes.length} />
                <NavItem id="match:series" label="Séries" icon={Tv} count={matchedCategories.series.length} />
@@ -584,7 +584,7 @@ export function PlaylistChannels() {
            </div>
 
            <div>
-             <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 px-3">Principal</div>
+             <div className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 px-3">Principal</div>
              <div className="space-y-1">
                <NavItem id="dashboard" label="ZiiiTV Report" icon={BarChart2} />
                <NavItem id="all" label="Todos os Canais" icon={Search} count={totalTitles} />
@@ -592,7 +592,7 @@ export function PlaylistChannels() {
            </div>
 
            <div>
-             <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 px-3">Categorias</div>
+             <div className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 px-3">Categorias</div>
              <div className="space-y-1">
                <NavItem id="category:filmes" label="Filmes" icon={Film} count={categories.filmes.length} />
                <NavItem id="category:series" label="Séries" icon={Tv} count={categories.series.length} />
@@ -603,7 +603,7 @@ export function PlaylistChannels() {
 
            {Object.keys(platforms).length > 0 && (
              <div>
-               <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 px-3">Streamings Localizados</div>
+               <div className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 px-3">Streamings Localizados</div>
                <div className="space-y-1">
                  {Object.entries(platforms)
                    .sort(([a], [b]) => a.localeCompare(b))

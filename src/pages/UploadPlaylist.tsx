@@ -58,7 +58,7 @@ export function UploadPlaylist() {
       <div className="grid gap-4 lg:grid-cols-3">
         {MODES.map(({ mode: itemMode, label, icon: Icon, description }) => (
           <button key={itemMode} type="button" onClick={() => setMode(itemMode)}
-            className={`text-left rounded-2xl border p-5 transition-colors ${mode === itemMode ? 'border-accent bg-accent/10' : 'border-border bg-surface hover:bg-elevated'}`}>
+            className={`text-left rounded-card border p-5 transition-colors ${mode === itemMode ? 'border-accent bg-accent/10' : 'border-border bg-surface hover:bg-elevated'}`}>
             <Icon className={`h-5 w-5 ${mode === itemMode ? 'text-accent' : 'text-text-muted'}`} />
             <p className="mt-3 font-semibold text-text-primary">{label}</p>
             <p className="mt-1 text-xs leading-5 text-text-muted">{description}</p>
@@ -70,7 +70,7 @@ export function UploadPlaylist() {
         <Card>
           <div className="space-y-5">
             {mode === 'file' && (
-              <label className="block rounded-2xl border border-dashed border-border bg-elevated/40 p-8 text-center hover:border-accent/60">
+              <label className="block rounded-card border border-dashed border-border bg-elevated/40 p-8 text-center hover:border-accent/60">
                 <FileUp className="mx-auto h-8 w-8 text-accent" />
                 <span className="mt-3 block text-sm font-semibold text-text-primary">{file?.name || 'Selecionar .m3u ou .m3u8'}</span>
                 <span className="mt-1 block text-xs text-text-muted">Até {MAX_PLAYLIST_FILE_BYTES / 1024 / 1024} MB; o navegador não classifica nem lê o arquivo inteiro.</span>
@@ -115,7 +115,7 @@ export function UploadPlaylist() {
 function Field({ label, value, onChange, type = 'text', placeholder, autoComplete }: {
   label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; autoComplete?: string
 }) {
-  return <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</span><input type={type} value={value} placeholder={placeholder} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-border bg-elevated px-4 py-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted/60 focus:border-accent" /></label>
+  return <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</span><input type={type} value={value} placeholder={placeholder} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[10px] border border-border bg-elevated px-4 py-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted/60 focus:border-accent" /></label>
 }
 
 function Guarantee({ icon: Icon, text }: { icon: typeof ShieldCheck; text: string }) {

@@ -142,7 +142,7 @@ export function Homes() {
         action={
           <button
             onClick={openNew}
-            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-[10px] text-sm font-medium hover:bg-accent/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Nova Home
@@ -162,7 +162,7 @@ export function Homes() {
           <p className="text-text-muted text-sm mb-6">Crie sua primeira home para configurar a tela inicial da TV</p>
           <button
             onClick={openNew}
-            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-[10px] text-sm"
           >
             <Plus className="w-4 h-4" /> Criar primeira home
           </button>
@@ -172,7 +172,7 @@ export function Homes() {
           {homes.map(h => (
             <div
               key={h.id}
-              className={`bg-surface border rounded-xl p-5 flex items-center gap-4 transition-all ${
+              className={`bg-surface border rounded-card p-5 flex items-center gap-4 transition-all ${
                 h.is_active ? 'border-accent/40 bg-accent/5' : 'border-border'
               }`}
             >
@@ -207,35 +207,35 @@ export function Homes() {
                 {!h.is_active && (
                   <button
                     onClick={() => handleActivate(h.id)}
-                    className="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium"
+                    className="px-3 py-1.5 text-xs bg-accent text-white rounded-[10px] hover:bg-accent/90 transition-colors font-medium"
                   >
                     Ativar
                   </button>
                 )}
                 <button
                   onClick={() => navigate(`/admin/preview?home_id=${h.id}`)}
-                  className="p-2 rounded-lg text-text-muted hover:bg-elevated hover:text-accent transition-colors"
+                  className="p-2 rounded-[10px] text-text-muted hover:bg-elevated hover:text-accent transition-colors"
                   title="Preview na TV"
                 >
                   <Eye className="w-4 h-4" />
                 </button>
                 <Link
                   to={`/admin/homes/${h.id}`}
-                  className="p-2 rounded-lg text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
+                  className="p-2 rounded-[10px] text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
                   title="Editar seções"
                 >
                   <Pencil className="w-4 h-4" />
                 </Link>
                 <button
                   onClick={() => handleDuplicate(h)}
-                  className="p-2 rounded-lg text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
+                  className="p-2 rounded-[10px] text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
                   title="Duplicar"
                 >
                   <Copy className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => openEdit(h)}
-                  className="p-2 rounded-lg text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
+                  className="p-2 rounded-[10px] text-text-muted hover:bg-elevated hover:text-text-primary transition-colors"
                   title="Renomear"
                 >
                   <Pencil className="w-4 h-4" />
@@ -243,7 +243,7 @@ export function Homes() {
                 {!h.is_active && (
                   <button
                     onClick={() => handleDelete(h.id)}
-                    className="p-2 rounded-lg text-text-muted hover:bg-danger/10 hover:text-danger transition-colors"
+                    className="p-2 rounded-[10px] text-text-muted hover:bg-danger/10 hover:text-danger transition-colors"
                     title="Deletar"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -258,7 +258,7 @@ export function Homes() {
       {/* Modal criar/editar */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-2xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-surface border border-border rounded-card w-full max-w-md p-6 space-y-4">
             <h2 className="text-lg font-bold text-text-primary">
               {editingHome ? 'Editar Home' : 'Nova Home'}
             </h2>
@@ -266,7 +266,7 @@ export function Homes() {
               <div>
                 <label className="block text-xs text-text-muted mb-1">Nome *</label>
                 <input
-                  className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
+                  className="w-full bg-elevated border border-border rounded-[10px] px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
                   placeholder="Ex: Home Principal, Home Kids..."
                   value={form.name}
                   onChange={e => {
@@ -278,7 +278,7 @@ export function Homes() {
               <div>
                 <label className="block text-xs text-text-muted mb-1">Slug * (identificador único)</label>
                 <input
-                  className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent"
+                  className="w-full bg-elevated border border-border rounded-[10px] px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent"
                   placeholder="home-principal"
                   value={form.slug}
                   onChange={e => setForm(f => ({ ...f, slug: slugify(e.target.value) }))}
@@ -287,7 +287,7 @@ export function Homes() {
               <div>
                 <label className="block text-xs text-text-muted mb-1">Descrição (opcional)</label>
                 <input
-                  className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
+                  className="w-full bg-elevated border border-border rounded-[10px] px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
                   placeholder="Ex: Home padrão com filmes e séries..."
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
@@ -297,14 +297,14 @@ export function Homes() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-elevated transition-colors"
+                className="flex-1 px-4 py-2 rounded-[10px] border border-border text-text-secondary text-sm hover:bg-elevated transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 rounded-[10px] bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {editingHome ? 'Salvar' : 'Criar'}
