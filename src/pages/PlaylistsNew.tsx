@@ -171,22 +171,22 @@ export function Playlists() {
   }
 
   const handleToggleMode = async (pl: Playlist) => {
-    const next = (pl.presentation_mode ?? 'auto') === 'auto' ? 'curated' : 'auto'
-    setTogglingMode(pl.id)
-    try {
-      const { error } = await supabase
-        .from('playlists')
-        .update({ presentation_mode: next })
-        .eq('id', pl.id)
-      if (error) throw error
-      setPlaylists(prev => prev.map(p => p.id === pl.id ? { ...p, presentation_mode: next } : p))
-      toast.success(next === 'curated' ? 'Modo Curado ativo — só aparece o que você configurar na Home' : 'Modo Auto ativo — mostra tudo da lista')
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao alterar modo')
-    } finally {
-      setTogglingMode(null)
+      const next = (pl.presentation_mode ?? 'auto') === 'auto' ? 'curated' : 'auto'
+      setTogglingMode(pl.id)
+      try {
+        const { error } = await supabase
+          .from('playlists')
+          .update({ presentation_mode: next })
+          .eq('id', pl.id)
+        if (error) throw error
+        setPlaylists(prev => prev.map(p => p.id === pl.id ? { ...p, presentation_mode: next } : p))
+        toast.success(next === 'curated' ? 'Modo Personalizado ativo — só aparece o que você configurar na Home' : 'Modo Original ativo — mostra tudo da lista como vem da M3U/Xtream')
+      } catch (err: any) {
+        toast.error(err.message || 'Erro ao alterar modo')
+      } finally {
+        setTogglingMode(null)
+      }
     }
-  }
 
   const handleAssignHome = async (pl: Playlist, homeId: string) => {
     setAssigningHome(pl.id)
@@ -314,7 +314,7 @@ export function Playlists() {
                         <button
                           onClick={() => handleToggleMode(pl)}
                           disabled={togglingMode === pl.id}
-                          title={isCurated ? 'Modo Curado: só aparece o que está na Home. Clique para mudar para Auto.' : 'Modo Auto: mostra tudo da lista. Clique para mudar para Curado.'}
+                          title={isCurated ? 'Modo Personalizado: só aparece o que está na Home. Clique para mudar para Original.' : 'Modo Original: mostra tudo da lista como vem da M3U/Xtream. Clique para mudar para Personalizada.'}
                           className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium transition-colors ${
                             isCurated
                               ? 'bg-accent/15 text-accent border-accent/30 hover:bg-accent/25'
@@ -326,7 +326,7 @@ export function Playlists() {
                             : isCurated
                               ? <Wand2 className="w-3 h-3" />
                               : <LayoutList className="w-3 h-3" />}
-                          {isCurated ? 'Curado' : 'Auto'}
+                          {isCurated ? 'Personalizada' : 'Original'}
                         </button>
                       )}
                       {/* Home vinculada — só faz sentido em modo curado */}

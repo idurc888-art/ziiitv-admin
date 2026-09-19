@@ -12,8 +12,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { getDetailedTMDBData } from '../src/lib/tmdbFetch'
 
-const SUPABASE_URL = 'https://xkhlentrhydviqfgqdhv.supabase.co'
-const SUPABASE_KEY = 'sb_secret_1ZD7ZVjGoVYke2XbNuEvvA_3tcnIR4_'
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xkhlentrhydviqfgqdhv.supabase.co'
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const TMDB_KEY     = 'b68afbadedebf0889f00a0cf577d3e5a'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)

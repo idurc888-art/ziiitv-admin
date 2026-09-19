@@ -290,7 +290,7 @@ export function HomeEditor() {
       .update({ presentation_mode: next })
       .eq('id', playlist.id)
     if (error) toast.error('Erro ao atualizar modo: ' + error.message)
-    else toast.success(next === 'curated' ? '✅ Modo Curado ativado — TV usará esta home' : '🔄 Modo Auto ativado — TV mostra tudo da lista')
+    else toast.success(next === 'curated' ? 'Modo Personalizado ativado — TV usará esta home' : 'Modo Original ativado — TV mostra tudo da lista')
     setTogglingMode(false)
     fetchXtreamPlaylists()
   }
